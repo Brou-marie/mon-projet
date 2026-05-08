@@ -20,7 +20,7 @@ export default function Navbar() {
         <div className="flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-xl font-bold text-primary-700">
             <Hotel className="h-6 w-6 text-brand-500" />
-            <span>AfriStay</span>
+            <span>Reservation</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6">

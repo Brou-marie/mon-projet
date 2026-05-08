@@ -169,7 +169,7 @@ export default function BookingPage() {
             </div>
             <div className="mt-4 space-y-2 border-b pb-4">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Frais de service AfriStay (15%)</span>
+                <span className="text-gray-500">Frais de service Reservation (15%)</span>
                 <span className="font-medium">{platformFee.toLocaleString()} FCFA</span>
               </div>
             </div>
