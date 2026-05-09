@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from 'react-query';
-import api from '../api/client';
-import { useAuth } from '../context/AuthContext';
+import api from '../api/clientApi';
+import { useAuth } from '../context/ContexteAuth';
 import {
   Calendar, Users, Smartphone, CreditCard, Banknote,
   AlertCircle, Loader, CheckCircle, ArrowLeft, Shield, Info,
@@ -47,7 +47,7 @@ export default function BookingPage() {
     }
   );
 
-  const roomType = establishment?.room_types?.find((r) => r.id === roomTypeId);
+  const roomType = establishment?.room_types?.find((r) => String(r.id) === String(roomTypeId));
 
   const nights = checkIn && checkOut
     ? Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000))
@@ -82,7 +82,7 @@ export default function BookingPage() {
     },
     {
       onSuccess: (booking) => {
-        navigate(`/confirmation/${booking.booking_number}`);
+        navigate(`/confirmation/${booking.booking_number}`, { replace: true });
       },
       onError: (err) => {
         const data = err.response?.data;
@@ -98,7 +98,7 @@ export default function BookingPage() {
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader className="h-8 w-8 animate-spin text-primary-600" />
+        <Loader className="h-8 w-8 animate-spin text-noam-600" />
       </div>
     );
   }
@@ -109,7 +109,7 @@ export default function BookingPage() {
         <AlertCircle className="mx-auto h-12 w-12 text-gray-300" />
         <h2 className="mt-4 text-xl font-semibold text-gray-900">Chambre non trouvée</h2>
         <p className="mt-2 text-gray-500">Ce type de chambre n'est pas disponible.</p>
-        <Link to={`/establishments/${slug}`} className="btn-primary mt-4 inline-block">
+        <Link to={`/hebergements/${slug}`} className="btn-primaire mt-4 inline-block">
           Retour à l'hébergement
         </Link>
       </div>
@@ -120,7 +120,7 @@ export default function BookingPage() {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Breadcrumb */}
       <Link
-        to={`/establishments/${slug}`}
+        to={`/hebergements/${slug}`}
         className="mb-6 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -138,14 +138,14 @@ export default function BookingPage() {
         ].map((s, i) => (
           <div key={s.n} className="flex items-center gap-2">
             <div className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
-              step >= s.n ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
+              step >= s.n ? 'bg-noam-600 text-white' : 'bg-gray-200 text-gray-500'
             }`}>
               {step > s.n ? <CheckCircle className="h-4 w-4" /> : s.n}
             </div>
             <span className={`text-sm ${step >= s.n ? 'font-medium text-gray-900' : 'text-gray-400'}`}>
               {s.label}
             </span>
-            {i < 2 && <div className={`h-px w-8 ${step > s.n ? 'bg-primary-600' : 'bg-gray-200'}`} />}
+            {i < 2 && <div className={`h-px w-8 ${step > s.n ? 'bg-noam-600' : 'bg-gray-200'}`} />}
           </div>
         ))}
       </div>
@@ -165,7 +165,7 @@ export default function BookingPage() {
             <h2 className="text-lg font-semibold text-gray-900">Votre séjour</h2>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-                <Calendar className="h-5 w-5 text-primary-600 shrink-0" />
+                <Calendar className="h-5 w-5 text-noam-600 shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">Arrivée</p>
                   <p className="text-sm font-semibold">
@@ -175,7 +175,7 @@ export default function BookingPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-                <Calendar className="h-5 w-5 text-primary-600 shrink-0" />
+                <Calendar className="h-5 w-5 text-noam-600 shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">Départ</p>
                   <p className="text-sm font-semibold">
@@ -185,7 +185,7 @@ export default function BookingPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-                <Users className="h-5 w-5 text-primary-600 shrink-0" />
+                <Users className="h-5 w-5 text-noam-600 shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">Voyageurs</p>
                   <p className="text-sm font-semibold">{guestsCount} adulte(s)</p>
@@ -218,7 +218,7 @@ export default function BookingPage() {
               </label>
               <textarea
                 rows={2}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="champ"
                 placeholder="Heure d'arrivée, lit bébé, étage préféré..."
                 value={guestNotes}
                 onChange={(e) => setGuestNotes(e.target.value)}
@@ -238,19 +238,19 @@ export default function BookingPage() {
                   onClick={() => setPaymentMethod(method.id)}
                   className={`flex items-center gap-3 rounded-lg border p-4 text-left transition ${
                     paymentMethod === method.id
-                      ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500'
+                      ? 'border-noam-500 bg-noam-50 ring-1 ring-noam-500'
                       : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <span className="text-2xl">{method.icon}</span>
                   <div>
-                    <p className={`text-sm font-semibold ${paymentMethod === method.id ? 'text-primary-700' : 'text-gray-900'}`}>
+                    <p className={`text-sm font-semibold ${paymentMethod === method.id ? 'text-noam-700' : 'text-gray-900'}`}>
                       {method.label}
                     </p>
                     <p className="text-xs text-gray-500">{method.description}</p>
                   </div>
                   {paymentMethod === method.id && (
-                    <CheckCircle className="ml-auto h-5 w-5 text-primary-600 shrink-0" />
+                    <CheckCircle className="ml-auto h-5 w-5 text-noam-600 shrink-0" />
                   )}
                 </button>
               ))}
@@ -306,7 +306,7 @@ export default function BookingPage() {
               <div className="border-t pt-3">
                 <div className="flex justify-between text-base font-bold">
                   <span>Total à payer</span>
-                  <span className="text-primary-700">{total.toLocaleString('fr-FR')} FCFA</span>
+                  <span className="text-noam-700">{total.toLocaleString('fr-FR')} FCFA</span>
                 </div>
                 <p className="mt-1 text-xs text-gray-400">Toutes taxes comprises</p>
               </div>
@@ -330,7 +330,7 @@ export default function BookingPage() {
             </div>
 
             {/* Infos voyageur */}
-            <div className="mt-4 rounded-lg bg-primary-50 p-3 text-xs text-primary-700">
+            <div className="mt-4 rounded-lg bg-noam-50 p-3 text-xs text-noam-700">
               <p className="font-medium">Réservation pour :</p>
               <p>{user?.first_name} {user?.last_name}</p>
               <p>{user?.email}</p>
@@ -340,7 +340,7 @@ export default function BookingPage() {
             <button
               onClick={() => bookingMutation.mutate()}
               disabled={bookingMutation.isLoading}
-              className="btn-primary mt-5 w-full py-3 text-base disabled:opacity-60 disabled:cursor-not-allowed"
+              className="btn-primaire mt-5 w-full py-3 text-base disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {bookingMutation.isLoading ? (
                 <span className="flex items-center justify-center gap-2">

@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
-import api from '../api/client';
+import api from '../api/clientApi';
 import {
   CheckCircle, Calendar, MapPin, Hotel, ArrowLeft,
   Clock, Users, DollarSign, Phone, Mail, Shield,
@@ -20,7 +20,7 @@ export default function ConfirmationPage() {
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-noam-600 border-t-transparent" />
       </div>
     );
   }
@@ -29,7 +29,7 @@ export default function ConfirmationPage() {
     return (
       <div className="mx-auto max-w-2xl px-4 py-12 text-center">
         <p className="text-gray-500">Réservation non trouvée.</p>
-        <Link to="/" className="btn-primary mt-4 inline-block">Retour à l'accueil</Link>
+        <Link to="/" className="btn-primaire mt-4 inline-block">Retour à l'accueil</Link>
       </div>
     );
   }
@@ -57,7 +57,7 @@ export default function ConfirmationPage() {
           </h1>
           <p className="mt-1 text-gray-500">
             Numéro de réservation :{' '}
-            <span className="font-mono font-bold text-primary-700">{booking.booking_number}</span>
+            <span className="font-mono font-bold text-noam-700">{booking.booking_number}</span>
           </p>
         </div>
 
@@ -66,7 +66,7 @@ export default function ConfirmationPage() {
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Détails du séjour</h2>
           <div className="mt-3 space-y-3">
             <div className="flex items-center gap-3">
-              <Hotel className="h-5 w-5 text-primary-600 shrink-0" />
+              <Hotel className="h-5 w-5 text-noam-600 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-gray-900">{booking.establishment_name}</p>
                 <p className="text-xs text-gray-500">{booking.room_type_name}</p>
@@ -133,7 +133,7 @@ export default function ConfirmationPage() {
             )}
             <div className="flex justify-between border-t pt-2 text-base font-bold text-gray-900">
               <span>Total payé</span>
-              <span className="text-primary-700">{total.toLocaleString('fr-FR')} FCFA</span>
+              <span className="text-noam-700">{total.toLocaleString('fr-FR')} FCFA</span>
             </div>
           </div>
         </div>
@@ -178,11 +178,11 @@ export default function ConfirmationPage() {
 
         {/* Actions */}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <Link to="/my-bookings" className="btn-outline flex-1 justify-center">
+          <Link to="/mes-reservations" className="btn-secondaire flex-1 justify-center">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Mes réservations
           </Link>
-          <Link to="/" className="btn-primary flex-1 justify-center">
+          <Link to="/" className="btn-primaire flex-1 justify-center">
             Retour à l'accueil
           </Link>
         </div>

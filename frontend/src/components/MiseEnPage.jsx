@@ -1,15 +1,15 @@
 import { Outlet } from 'react-router-dom';
-import Navbar from './Navbar';
-import Footer from './Footer';
+import BarreNavigation from './BarreNavigation';
+import PiedDePage from './PiedDePage';
 
-export default function Layout() {
+export default function MiseEnPage() {
   return (
     <div className="flex min-h-screen flex-col">
-      <Navbar />
+      <BarreNavigation />
       <main className="flex-1">
         <Outlet />
       </main>
-      <Footer />
+      <PiedDePage />
     </div>
   );
 }

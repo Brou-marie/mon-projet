@@ -103,9 +103,8 @@ api.interceptors.response.use(
 function clearAuthAndRedirect() {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
-  // Rediriger seulement si on n'est pas déjà sur /login
-  if (!window.location.pathname.includes('/login')) {
-    window.location.href = '/login';
+  if (!window.location.pathname.includes('/connexion')) {
+    window.location.href = '/connexion';
   }
 }
 

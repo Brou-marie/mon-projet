@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import api from '../api/client';
+import api from '../api/clientApi';
 import {
   Calendar, Loader, AlertCircle, CheckCircle, Clock,
   XCircle, Users, DollarSign, Phone, Mail, ChevronDown,
@@ -224,7 +224,7 @@ export default function HostBookings() {
             onClick={() => setStatusFilter(f.value)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               statusFilter === f.value
-                ? 'bg-primary-600 text-white'
+                ? 'bg-noam-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -237,7 +237,7 @@ export default function HostBookings() {
       <div className="mt-6 space-y-4">
         {isLoading && (
           <div className="flex h-64 items-center justify-center">
-            <Loader className="h-8 w-8 animate-spin text-primary-600" />
+            <Loader className="h-8 w-8 animate-spin text-noam-600" />
           </div>
         )}
 

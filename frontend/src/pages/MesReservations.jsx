@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import api from '../api/client';
-import { useAuth } from '../context/AuthContext';
+import api from '../api/clientApi';
+import { useAuth } from '../context/ContexteAuth';
 import {
   Calendar, Loader, AlertCircle, ArrowRight, BedDouble,
   CheckCircle, Clock, XCircle, MapPin, DollarSign,
@@ -55,14 +55,14 @@ export default function MyBookings() {
           <h1 className="text-2xl font-bold text-gray-900">Mes réservations</h1>
           <p className="text-sm text-gray-500">Historique et suivi de vos séjours</p>
         </div>
-        <Link to="/search" className="btn-outline text-sm">
+        <Link to="/recherche" className="btn-secondaire text-sm">
           Trouver un hébergement
         </Link>
       </div>
 
       {isLoading && (
         <div className="flex h-64 items-center justify-center">
-          <Loader className="h-8 w-8 animate-spin text-primary-600" />
+          <Loader className="h-8 w-8 animate-spin text-noam-600" />
         </div>
       )}
 
@@ -78,7 +78,7 @@ export default function MyBookings() {
           <Calendar className="mx-auto h-12 w-12 text-gray-300" />
           <h3 className="mt-4 text-lg font-semibold text-gray-900">Aucune réservation</h3>
           <p className="mt-1 text-gray-500">Vous n'avez pas encore effectué de réservation.</p>
-          <Link to="/" className="btn-primary mt-4 inline-block">Découvrir les hébergements</Link>
+          <Link to="/" className="btn-primaire mt-4 inline-block">Découvrir les hébergements</Link>
         </div>
       )}
 
@@ -146,7 +146,7 @@ export default function MyBookings() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Link
                       to={`/confirmation/${b.booking_number}`}
-                      className="flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700"
+                      className="flex items-center gap-1 text-sm font-medium text-noam-600 hover:text-noam-700"
                     >
                       Voir le détail <ArrowRight className="h-3.5 w-3.5" />
                     </Link>

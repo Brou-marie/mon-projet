@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import api from '../api/client';
+import api from '../api/clientApi';
 import {
   Hotel, Plus, Edit, Eye, Loader, MapPin, Star, Upload, X,
   Trash2, BedDouble, ChevronDown, ChevronUp, Check,
@@ -68,7 +68,7 @@ function ImageUploader({ establishmentSlug, existingImages = [], onUploaded }) {
             <div key={img.id} className="relative h-20 w-20 overflow-hidden rounded-lg border">
               <img src={img.image_url || img.image} alt="" className="h-full w-full object-cover" />
               {img.is_primary && (
-                <span className="absolute left-0 top-0 bg-primary-600 px-1 text-xs text-white">
+                <span className="absolute left-0 top-0 bg-noam-600 px-1 text-xs text-white">
                   Principale
                 </span>
               )}
@@ -86,7 +86,7 @@ function ImageUploader({ establishmentSlug, existingImages = [], onUploaded }) {
 
       {/* Zone de drop */}
       <div
-        className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-4 hover:border-primary-400 hover:bg-primary-50 transition"
+        className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-4 hover:border-noam-400 hover:bg-noam-50 transition"
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
@@ -232,7 +232,7 @@ function RoomForm({ establishmentSlug, onCreated }) {
       <div>
         <label className="block text-xs font-medium text-gray-700 mb-1">Photos de la chambre</label>
         <div
-          className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-3 hover:border-primary-400 transition"
+          className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-3 hover:border-noam-400 transition"
           onClick={() => inputRef.current?.click()}
         >
           <Upload className="h-4 w-4 text-gray-400" />
@@ -331,7 +331,7 @@ function EstablishmentCard({ est, onRefetch }) {
 
         {/* Actions */}
         <div className="mt-3 flex gap-2">
-          <Link to={`/establishments/${est.slug}`} className="btn-outline flex-1 py-1.5 text-xs justify-center">
+          <Link to={`/hebergements/${est.slug}`} className="btn-secondaire flex-1 py-1.5 text-xs justify-center">
             <Eye className="mr-1 h-3.5 w-3.5" /> Voir
           </Link>
           <button
@@ -365,7 +365,7 @@ function EstablishmentCard({ est, onRefetch }) {
                 </h4>
                 <button
                   onClick={() => setShowRoomForm(!showRoomForm)}
-                  className="flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700"
+                  className="flex items-center gap-1 text-xs font-medium text-noam-600 hover:text-noam-700"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {showRoomForm ? 'Annuler' : 'Ajouter une chambre'}
@@ -481,7 +481,7 @@ export default function HostEstablishments() {
                   className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
                     formErrors[field.name]
                       ? 'border-red-400 focus:border-red-400 focus:ring-red-400'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+                      : 'border-gray-300 focus:border-noam-500 focus:ring-noam-500'
                   }`}
                   value={form[field.name]}
                   onChange={handleChange}
@@ -504,7 +504,7 @@ export default function HostEstablishments() {
                 className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
                   formErrors.description
                     ? 'border-red-400 focus:border-red-400 focus:ring-red-400'
-                    : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+                    : 'border-gray-300 focus:border-noam-500 focus:ring-noam-500'
                 }`}
                 value={form.description}
                 onChange={handleChange}
@@ -514,7 +514,7 @@ export default function HostEstablishments() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Type d'établissement</label>
               <select name="establishment_type"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-noam-500 focus:outline-none focus:ring-1 focus:ring-noam-500"
                 value={form.establishment_type} onChange={handleChange}>
                 <option value="hotel">Hôtel</option>
                 <option value="residence">Résidence</option>
@@ -528,7 +528,7 @@ export default function HostEstablishments() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Politique d'annulation</label>
               <select name="cancellation_policy"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-noam-500 focus:outline-none focus:ring-1 focus:ring-noam-500"
                 value={form.cancellation_policy} onChange={handleChange}>
                 <option value="flexible">Flexible — Remboursement jusqu'à J-1</option>
                 <option value="moderate">Modérée — Remboursement jusqu'à J-5</option>
@@ -539,14 +539,14 @@ export default function HostEstablishments() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Heure de check-in</label>
               <input type="time" name="check_in_time"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-noam-500 focus:outline-none focus:ring-1 focus:ring-noam-500"
                 value={form.check_in_time} onChange={handleChange} />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Heure de check-out</label>
               <input type="time" name="check_out_time"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-noam-500 focus:outline-none focus:ring-1 focus:ring-noam-500"
                 value={form.check_out_time} onChange={handleChange} />
             </div>
           </div>
@@ -568,7 +568,7 @@ export default function HostEstablishments() {
       <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {isLoading && (
           <div className="col-span-full flex h-64 items-center justify-center">
-            <Loader className="h-8 w-8 animate-spin text-primary-600" />
+            <Loader className="h-8 w-8 animate-spin text-noam-600" />
           </div>
         )}
 

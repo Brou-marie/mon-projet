@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
-import api from '../api/client';
-import { useAuth } from '../context/AuthContext';
+import api from '../api/clientApi';
+import { useAuth } from '../context/ContexteAuth';
 import {
   Hotel, Calendar, ArrowRight, Loader, DollarSign, Users,
   TrendingUp, Clock, CheckCircle, XCircle, AlertCircle, Plus,
@@ -67,7 +67,7 @@ export default function HostDashboard() {
             Bienvenue, <span className="font-medium">{user?.first_name || user?.email}</span>
           </p>
         </div>
-        <Link to="/host/establishments" className="btn-primary">
+        <Link to="/hote/hebergements" className="btn-primaire">
           <Plus className="mr-2 h-4 w-4" />
           Gérer mes établissements
         </Link>
@@ -125,14 +125,14 @@ export default function HostDashboard() {
         <div className="rounded-xl border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Réservations récentes</h2>
-            <Link to="/host/bookings" className="flex items-center text-sm font-medium text-primary-600 hover:text-primary-700">
+            <Link to="/hote/reservations" className="flex items-center text-sm font-medium text-noam-600 hover:text-noam-700">
               Voir tout <ArrowRight className="ml-1 h-4 w-4" />
             </Link>
           </div>
 
           {loadingBook ? (
             <div className="flex h-32 items-center justify-center">
-              <Loader className="h-6 w-6 animate-spin text-primary-600" />
+              <Loader className="h-6 w-6 animate-spin text-noam-600" />
             </div>
           ) : bookings.length === 0 ? (
             <div className="mt-4 rounded-lg bg-gray-50 p-6 text-center text-sm text-gray-500">
@@ -166,20 +166,20 @@ export default function HostDashboard() {
         <div className="rounded-xl border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Mes établissements</h2>
-            <Link to="/host/establishments" className="flex items-center text-sm font-medium text-primary-600 hover:text-primary-700">
+            <Link to="/hote/hebergements" className="flex items-center text-sm font-medium text-noam-600 hover:text-noam-700">
               Gérer <ArrowRight className="ml-1 h-4 w-4" />
             </Link>
           </div>
 
           {loadingEst ? (
             <div className="flex h-32 items-center justify-center">
-              <Loader className="h-6 w-6 animate-spin text-primary-600" />
+              <Loader className="h-6 w-6 animate-spin text-noam-600" />
             </div>
           ) : (establishments || []).length === 0 ? (
             <div className="mt-4 rounded-lg bg-gray-50 p-6 text-center">
               <Hotel className="mx-auto h-8 w-8 text-gray-300" />
               <p className="mt-2 text-sm text-gray-500">Aucun établissement.</p>
-              <Link to="/host/establishments" className="btn-primary mt-3 inline-block text-sm">
+              <Link to="/hote/hebergements" className="btn-primaire mt-3 inline-block text-sm">
                 Ajouter un établissement
               </Link>
             </div>

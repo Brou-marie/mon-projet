@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
-import api from '../api/client';
-import { useAuth } from '../context/AuthContext';
+import api from '../api/clientApi';
+import { useAuth } from '../context/ContexteAuth';
 import {
   MapPin, Star, Users, Wifi, Car, Wind, Waves, Coffee, Utensils,
   Dumbbell, Shield, Tv, Droplets, Heart, Check, Loader, ChevronLeft,
@@ -53,7 +53,7 @@ export default function EstablishmentDetail() {
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader className="h-8 w-8 animate-spin text-primary-600" />
+        <Loader className="h-8 w-8 animate-spin text-noam-600" />
       </div>
     );
   }
@@ -64,7 +64,7 @@ export default function EstablishmentDetail() {
         <MapPin className="mx-auto h-12 w-12 text-gray-300" />
         <h2 className="mt-4 text-xl font-semibold text-gray-900">Hébergement non trouvé</h2>
         <p className="mt-2 text-gray-500">Cet hébergement n'existe pas ou n'est plus disponible.</p>
-        <Link to="/search" className="btn-primary mt-6 inline-block">Voir tous les hébergements</Link>
+        <Link to="/recherche" className="btn-primaire mt-6 inline-block">Voir tous les hébergements</Link>
       </div>
     );
   }
@@ -76,7 +76,7 @@ export default function EstablishmentDetail() {
 
   const handleBooking = (room) => {
     if (!user) {
-      navigate('/login', { state: { from: { pathname: `/establishments/${slug}` } } });
+      navigate('/connexion', { state: { from: { pathname: `/hebergements/${slug}` } } });
       return;
     }
     if (user.role === 'host') {
@@ -88,7 +88,7 @@ export default function EstablishmentDetail() {
       return;
     }
     navigate(
-      `/booking/${establishment.slug}?room_type=${room.id}&check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`
+      `/reservation/${establishment.slug}?room_type=${room.id}&check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`
     );
   };
 
@@ -195,17 +195,17 @@ export default function EstablishmentDetail() {
           {/* Infos pratiques */}
           <section className="grid grid-cols-2 gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-4">
             <div className="text-center">
-              <Clock className="mx-auto h-5 w-5 text-primary-600" />
+              <Clock className="mx-auto h-5 w-5 text-noam-600" />
               <p className="mt-1 text-xs text-gray-500">Check-in</p>
               <p className="text-sm font-semibold">{establishment.check_in_time || '14:00'}</p>
             </div>
             <div className="text-center">
-              <Clock className="mx-auto h-5 w-5 text-primary-600" />
+              <Clock className="mx-auto h-5 w-5 text-noam-600" />
               <p className="mt-1 text-xs text-gray-500">Check-out</p>
               <p className="text-sm font-semibold">{establishment.check_out_time || '11:00'}</p>
             </div>
             <div className="text-center">
-              <Heart className="mx-auto h-5 w-5 text-primary-600" />
+              <Heart className="mx-auto h-5 w-5 text-noam-600" />
               <p className="mt-1 text-xs text-gray-500">Annulation</p>
               <p className="text-sm font-semibold capitalize">{establishment.cancellation_policy}</p>
             </div>
@@ -227,7 +227,7 @@ export default function EstablishmentDetail() {
                   const Icon = amenityIcons[a.category] || Check;
                   return (
                     <div key={a.id} className="flex items-center gap-2 text-sm text-gray-700">
-                      <Icon className="h-4 w-4 text-primary-600 shrink-0" />
+                      <Icon className="h-4 w-4 text-noam-600 shrink-0" />
                       {a.name}
                     </div>
                   );
@@ -296,7 +296,7 @@ export default function EstablishmentDetail() {
                         {user?.role !== 'host' && (
                           <button
                             onClick={() => handleBooking(room)}
-                            className="btn-primary"
+                            className="btn-primaire"
                           >
                             Réserver
                           </button>
@@ -343,7 +343,7 @@ export default function EstablishmentDetail() {
               <div className="text-center text-sm text-gray-500">
                 <Shield className="mx-auto h-8 w-8 text-gray-300 mb-2" />
                 En tant qu'hébergeur, vous ne pouvez pas effectuer de réservations.
-                <Link to="/host/dashboard" className="mt-3 block text-primary-600 font-medium hover:underline">
+                <Link to="/hote/tableau-de-bord" className="mt-3 block text-noam-600 font-medium hover:underline">
                   Aller à mon tableau de bord
                 </Link>
               </div>
@@ -364,7 +364,7 @@ export default function EstablishmentDetail() {
                     <label className="text-xs font-medium text-gray-700">Arrivée</label>
                     <input
                       type="date"
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                      className="champ"
                       value={checkIn}
                       min={new Date().toISOString().split('T')[0]}
                       onChange={(e) => setCheckIn(e.target.value)}
@@ -374,7 +374,7 @@ export default function EstablishmentDetail() {
                     <label className="text-xs font-medium text-gray-700">Départ</label>
                     <input
                       type="date"
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                      className="champ"
                       value={checkOut}
                       min={checkIn || new Date().toISOString().split('T')[0]}
                       onChange={(e) => setCheckOut(e.target.value)}
@@ -385,22 +385,22 @@ export default function EstablishmentDetail() {
                     <input
                       type="number"
                       min={1}
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                      className="champ"
                       value={guests}
                       onChange={(e) => setGuests(e.target.value)}
                     />
                   </div>
                 </div>
                 {nights > 0 && (
-                  <p className="mt-3 text-center text-sm text-primary-700 font-medium">
+                  <p className="mt-3 text-center text-sm text-noam-700 font-medium">
                     {nights} nuit(s) sélectionnée(s)
                   </p>
                 )}
                 {!user && (
                   <Link
-                    to="/login"
-                    state={{ from: { pathname: `/establishments/${slug}` } }}
-                    className="btn-primary mt-4 block w-full text-center"
+                    to="/connexion"
+                    state={{ from: { pathname: `/hebergements/${slug}` } }}
+                    className="btn-primaire mt-4 block w-full text-center"
                   >
                     Se connecter pour réserver
                   </Link>

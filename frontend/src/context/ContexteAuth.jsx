@@ -1,5 +1,5 @@
 import { createContext, useState, useEffect, useCallback, useContext } from 'react';
-import api from '../api/client';
+import api from '../api/clientApi';
 
 export const AuthContext = createContext(null);
 
@@ -81,6 +81,10 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       setUser(null);
+      // Rediriger vers connexion si pas déjà dessus
+      if (!window.location.pathname.includes('/connexion')) {
+        window.location.href = '/connexion';
+      }
     }
   }, []);
 

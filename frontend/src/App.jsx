@@ -1,58 +1,58 @@
 import { Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import Layout from './components/Layout';
-import ProtectedRoute from './components/ProtectedRoute';
+import { AuthProvider } from './context/ContexteAuth';
+import MiseEnPage from './components/MiseEnPage';
+import RouteProtegee from './components/RouteProtegee';
 
-import Home from './pages/Home';
-import SearchResults from './pages/SearchResults';
-import EstablishmentDetail from './pages/EstablishmentDetail';
-import BookingPage from './pages/BookingPage';
-import ConfirmationPage from './pages/ConfirmationPage';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Profile from './pages/Profile';
-import MyBookings from './pages/MyBookings';
-import HostDashboard from './pages/HostDashboard';
-import HostEstablishments from './pages/HostEstablishments';
-import HostBookings from './pages/HostBookings';
+import Accueil from './pages/Accueil';
+import ResultatsRecherche from './pages/ResultatsRecherche';
+import DetailHebergement from './pages/DetailHebergement';
+import Reservation from './pages/Reservation';
+import Confirmation from './pages/Confirmation';
+import Connexion from './pages/Connexion';
+import Inscription from './pages/Inscription';
+import Profil from './pages/Profil';
+import MesReservations from './pages/MesReservations';
+import TableauDeBordHote from './pages/TableauDeBordHote';
+import HebergementsHote from './pages/HebergementsHote';
+import ReservationsHote from './pages/ReservationsHote';
 
 function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route path="/" element={<MiseEnPage />}>
           {/* Pages publiques */}
-          <Route index element={<Home />} />
-          <Route path="search" element={<SearchResults />} />
-          <Route path="establishments/:slug" element={<EstablishmentDetail />} />
-          <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
+          <Route index element={<Accueil />} />
+          <Route path="recherche" element={<ResultatsRecherche />} />
+          <Route path="hebergements/:slug" element={<DetailHebergement />} />
+          <Route path="connexion" element={<Connexion />} />
+          <Route path="inscription" element={<Inscription />} />
 
           {/* Pages voyageur uniquement */}
-          <Route path="booking/:slug" element={
-            <ProtectedRoute requiredRole="guest"><BookingPage /></ProtectedRoute>
+          <Route path="reservation/:slug" element={
+            <RouteProtegee roleRequis="guest"><Reservation /></RouteProtegee>
           } />
           <Route path="confirmation/:bookingNumber" element={
-            <ProtectedRoute requiredRole="guest"><ConfirmationPage /></ProtectedRoute>
+            <RouteProtegee roleRequis="guest"><Confirmation /></RouteProtegee>
           } />
-          <Route path="my-bookings" element={
-            <ProtectedRoute requiredRole="guest"><MyBookings /></ProtectedRoute>
+          <Route path="mes-reservations" element={
+            <RouteProtegee roleRequis="guest"><MesReservations /></RouteProtegee>
           } />
 
           {/* Pages communes (connecté) */}
-          <Route path="profile" element={
-            <ProtectedRoute><Profile /></ProtectedRoute>
+          <Route path="profil" element={
+            <RouteProtegee><Profil /></RouteProtegee>
           } />
 
-          {/* Pages hébergeur uniquement */}
-          <Route path="host/dashboard" element={
-            <ProtectedRoute requiredRole="host"><HostDashboard /></ProtectedRoute>
+          {/* Pages hôte uniquement */}
+          <Route path="hote/tableau-de-bord" element={
+            <RouteProtegee roleRequis="host"><TableauDeBordHote /></RouteProtegee>
           } />
-          <Route path="host/establishments" element={
-            <ProtectedRoute requiredRole="host"><HostEstablishments /></ProtectedRoute>
+          <Route path="hote/hebergements" element={
+            <RouteProtegee roleRequis="host"><HebergementsHote /></RouteProtegee>
           } />
-          <Route path="host/bookings" element={
-            <ProtectedRoute requiredRole="host"><HostBookings /></ProtectedRoute>
+          <Route path="hote/reservations" element={
+            <RouteProtegee roleRequis="host"><ReservationsHote /></RouteProtegee>
           } />
         </Route>
       </Routes>
