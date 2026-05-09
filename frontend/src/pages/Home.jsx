@@ -133,7 +133,7 @@ export default function Home() {
       {/* Why us */}
       <section className="bg-white border-t">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold text-gray-900 text-center">Pourquoi AfriStay ?</h2>
+          <h2 className="text-2xl font-bold text-gray-900 text-center">Pourquoi Reservation ?</h2>
           <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-3 text-center">
             <div>
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary-600">

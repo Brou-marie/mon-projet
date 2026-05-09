@@ -1,9 +1,15 @@
-import { useContext } from 'react';
-import { Navigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import { useLocation, Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
+/**
+ * Protège une route :
+ * - Redirige vers /login si non connecté (en mémorisant la page d'origine)
+ * - Redirige vers / si le rôle ne correspond pas
+ *   Exception : superadmin a accès à tout
+ */
 export default function ProtectedRoute({ children, requiredRole }) {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -14,10 +20,14 @@ export default function ProtectedRoute({ children, requiredRole }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (requiredRole && user.role !== requiredRole && user.role !== 'superadmin') {
+    // Rediriger vers l'espace approprié selon le rôle
+    if (user.role === 'host') {
+      return <Navigate to="/host/dashboard" replace />;
+    }
     return <Navigate to="/" replace />;
   }
 

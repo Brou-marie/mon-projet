@@ -1,9 +1,9 @@
-import { useContext, useState } from 'react';
-import { AuthContext } from '../context/AuthContext';
-import { User, Mail, Phone, Save, AlertCircle, Loader } from 'lucide-react';
+import { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { User, Mail, Phone, Save, AlertCircle, Loader, CheckCircle } from 'lucide-react';
 
 export default function Profile() {
-  const { user, updateProfile } = useContext(AuthContext);
+  const { user, updateProfile } = useAuth();
   const [form, setForm] = useState({
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
@@ -38,8 +38,8 @@ export default function Profile() {
         </div>
       )}
       {success && (
-        <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-          Profil mis à jour avec succès.
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
+          <CheckCircle className="h-4 w-4" /> Profil mis à jour avec succès.
         </div>
       )}
 

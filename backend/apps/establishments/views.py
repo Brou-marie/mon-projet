@@ -1,15 +1,15 @@
 from datetime import date, timedelta
 from django.db.models import Min, Q, F
-from rest_framework import viewsets, generics, status, permissions
+from rest_framework import viewsets, generics, status, permissions, parsers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter, SearchFilter
-from .models import Amenity, Establishment, RoomType, RoomAvailability
+from .models import Amenity, Establishment, EstablishmentImage, RoomType, RoomAvailability
 from .serializers import (
     AmenitySerializer, EstablishmentListSerializer, EstablishmentDetailSerializer,
-    EstablishmentCreateUpdateSerializer, RoomTypeDetailSerializer,
-    RoomAvailabilitySerializer
+    EstablishmentCreateUpdateSerializer, RoomTypeDetailSerializer, RoomTypeCreateSerializer,
+    RoomAvailabilitySerializer, EstablishmentImageSerializer,
 )
 
 
@@ -41,15 +41,28 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         return [permissions.AllowAny()]
 
     def get_queryset(self):
-        queryset = Establishment.objects.filter(status='active')
+        user = self.request.user if self.request.user.is_authenticated else None
+
+        # Pour my_establishments, retourner tous les établissements du host
+        if self.action == 'my_establishments':
+            if user:
+                return Establishment.objects.filter(host=user)
+            return Establishment.objects.none()
+
+        # Pour retrieve (détail), permettre au host de voir son propre établissement
+        if self.action == 'retrieve' and user and user.is_authenticated:
+            queryset = Establishment.objects.filter(
+                Q(status='active') | Q(host=user)
+            )
+        else:
+            queryset = Establishment.objects.filter(status='active')
+
         params = self.request.query_params
 
-        # Filter by city
         city = params.get('city')
         if city:
             queryset = queryset.filter(city__iexact=city)
 
-        # Filter by date range availability (requires check_in and check_out)
         check_in = params.get('check_in')
         check_out = params.get('check_out')
         guests = params.get('guests')
@@ -59,7 +72,6 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
                 check_in_date = date.fromisoformat(check_in)
                 check_out_date = date.fromisoformat(check_out)
                 if check_in_date < check_out_date:
-                    # Find establishments with at least one room type available for ALL nights in range
                     nights = [(check_in_date + timedelta(days=i)) for i in range((check_out_date - check_in_date).days)]
                     available_room_types = RoomType.objects.filter(
                         availabilities__date__in=nights,
@@ -165,3 +177,85 @@ class RoomTypeViewSet(viewsets.ModelViewSet):
             obj.save()
 
         return Response({"detail": "Disponibilités mises à jour."})
+
+
+class EstablishmentImageUploadView(generics.CreateAPIView):
+    """Upload une ou plusieurs images pour un établissement."""
+    serializer_class = EstablishmentImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+
+    def create(self, request, slug=None):
+        try:
+            establishment = Establishment.objects.get(slug=slug, host=request.user)
+        except Establishment.DoesNotExist:
+            return Response({"detail": "Établissement non trouvé."}, status=status.HTTP_404_NOT_FOUND)
+
+        images = request.FILES.getlist('images')
+        if not images:
+            return Response({"detail": "Aucune image fournie."}, status=status.HTTP_400_BAD_REQUEST)
+
+        created = []
+        for i, img_file in enumerate(images):
+            is_primary = (i == 0 and not establishment.images.filter(is_primary=True).exists())
+            obj = EstablishmentImage.objects.create(
+                establishment=establishment,
+                image=img_file,
+                caption=request.data.get('caption', ''),
+                is_primary=is_primary,
+                display_order=establishment.images.count(),
+            )
+            created.append(EstablishmentImageSerializer(obj, context={'request': request}).data)
+
+        return Response(created, status=status.HTTP_201_CREATED)
+
+
+class EstablishmentImageDeleteView(generics.DestroyAPIView):
+    """Supprime une image d'un établissement."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return EstablishmentImage.objects.filter(establishment__host=self.request.user)
+
+    def get_object(self):
+        return self.get_queryset().get(pk=self.kwargs['pk'])
+
+
+class RoomTypeCreateView(generics.CreateAPIView):
+    """Crée un type de chambre pour un établissement du host connecté."""
+    serializer_class = RoomTypeCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
+
+    def get_establishment(self):
+        slug = self.kwargs['slug']
+        try:
+            return Establishment.objects.get(slug=slug, host=self.request.user)
+        except Establishment.DoesNotExist:
+            return None
+
+    def create(self, request, slug=None):
+        establishment = self.get_establishment()
+        if not establishment:
+            return Response({"detail": "Établissement non trouvé."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(
+            data=request.data,
+            context={**self.get_serializer_context(), 'establishment': establishment}
+        )
+        serializer.is_valid(raise_exception=True)
+        room_type = serializer.save()
+
+        # Upload des images si fournies
+        images = request.FILES.getlist('images')
+        for i, img_file in enumerate(images):
+            from .models import RoomTypeImage
+            RoomTypeImage.objects.create(
+                room_type=room_type,
+                image=img_file,
+                is_primary=(i == 0),
+                display_order=i,
+            )
+
+        return Response(RoomTypeDetailSerializer(room_type, context={'request': request}).data,
+                        status=status.HTTP_201_CREATED)
