@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Search, MapPin, Users, Calendar, Star, ArrowRight } from 'lucide-react';
 
 const DESTINATIONS = [
-  { ville: 'Abidjan', image: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=600&q=80', nb: '120+' },
+  { ville: 'Abidjan', image: 'https://images.unsplash.com/photo-1532302527199-0d4b4dfb7e2c?auto=format&fit=crop&w=600&q=80', nb: '120+' },
   { ville: 'Bouaké', image: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=600&q=80', nb: '45+' },
   { ville: 'Yamoussoukro', image: 'https://images.unsplash.com/photo-1534234828563-02511c98653f?auto=format&fit=crop&w=600&q=80', nb: '30+' },
   { ville: 'San-Pédro', image: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=600&q=80', nb: '25+' },
@@ -37,10 +37,6 @@ export default function Accueil() {
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-medium text-white backdrop-blur-sm mb-6">
-              <Star className="h-4 w-4 fill-or-400 text-or-400" />
-              La plateforme #1 en Côte d'Ivoire
-            </div>
             <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
               Trouvez votre hébergement
               <span className="block text-or-400">idéal en Afrique</span>
