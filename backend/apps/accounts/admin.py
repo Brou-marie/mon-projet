@@ -10,10 +10,10 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ('email', 'phone', 'first_name', 'last_name')
     ordering = ('-created_at',)
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('AfriStay', {'fields': ('role', 'phone', 'avatar', 'is_email_verified', 'is_phone_verified')}),
+        ('NoamHome', {'fields': ('role', 'phone', 'avatar', 'is_email_verified', 'is_phone_verified')}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('AfriStay', {'fields': ('role', 'phone')}),
+        ('NoamHome', {'fields': ('role', 'phone')}),
     )
 
 

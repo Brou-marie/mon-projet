@@ -1,4 +1,5 @@
 from rest_framework import generics, status, permissions
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -19,10 +20,15 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        refresh = RefreshToken.for_user(user)
 
         # Retourner les données utilisateur après inscription
         return Response(
-            UserSerializer(user).data,
+            {
+                "user": UserSerializer(user).data,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -79,6 +85,8 @@ class GuestProfileUpdateView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
+        if self.request.user.role != 'guest':
+            raise PermissionDenied("Ce profil est reserve aux voyageurs.")
         profile, _ = GuestProfile.objects.get_or_create(user=self.request.user)
         return profile
 
@@ -88,5 +96,7 @@ class HostProfileUpdateView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
+        if self.request.user.role != 'host':
+            raise PermissionDenied("Ce profil est reserve aux hebergeurs.")
         profile, _ = HostProfile.objects.get_or_create(user=self.request.user)
         return profile

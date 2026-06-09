@@ -86,7 +86,7 @@ class Booking(models.Model):
     def save(self, *args, **kwargs):
         if not self.booking_number:
             import random
-            self.booking_number = f"AFS{random.randint(10000000, 99999999)}"
+            self.booking_number = f"NOAM{random.randint(10000000, 99999999)}"
         if self.check_in_date and self.check_out_date:
             self.total_nights = (self.check_out_date - self.check_in_date).days
         super().save(*args, **kwargs)

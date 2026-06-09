@@ -11,11 +11,12 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             'id', 'email', 'first_name', 'last_name', 'full_name',
-            'phone', 'role', 'avatar', 'is_email_verified',
+            'phone', 'role', 'avatar', 'is_staff', 'is_superuser', 'is_email_verified',
             'is_phone_verified', 'created_at',
         )
         read_only_fields = (
-            'id', 'role', 'is_email_verified', 'is_phone_verified', 'created_at',
+            'id', 'role', 'is_staff', 'is_superuser',
+            'is_email_verified', 'is_phone_verified', 'created_at',
         )
 
     def get_full_name(self, obj):
@@ -27,7 +28,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         write_only=True, required=True, validators=[validate_password]
     )
     password_confirm = serializers.CharField(write_only=True, required=True)
-    role = serializers.ChoiceField(choices=User.ROLE_CHOICES, required=True)
+    role = serializers.ChoiceField(
+        choices=[('guest', 'Voyageur'), ('host', 'Hebergeur')],
+        required=True,
+    )
 
     class Meta:
         model = User
@@ -35,11 +39,23 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'email', 'first_name', 'last_name', 'phone',
             'password', 'password_confirm', 'role',
         )
+        extra_kwargs = {
+            'email': {'required': True},
+            'first_name': {'required': True, 'allow_blank': False},
+            'last_name': {'required': True, 'allow_blank': False},
+        }
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("Un compte avec cet email existe déjà.")
         return value.lower()
+
+    def validate_role(self, value):
+        if value not in ('guest', 'host'):
+            raise serializers.ValidationError(
+                "L'inscription publique est limitee aux voyageurs et hebergeurs."
+            )
+        return value
 
     def validate(self, attrs):
         if attrs['password'] != attrs.pop('password_confirm'):
