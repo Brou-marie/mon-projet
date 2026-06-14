@@ -1,16 +1,17 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Booking, BookingStatusHistory
+from .models import Booking
 from .serializers import (
     BookingListSerializer, BookingDetailSerializer, BookingCreateSerializer,
-    BookingStatusHistorySerializer
+    BookingPriceEstimateSerializer,
 )
-from apps.establishments.models import RoomAvailability
+from .services import record_status, restore_availability, set_booking_status
+from apps.notifications.services import notify_user
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -37,7 +38,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
-        # Set expiry for cart (15 minutes)
+        # Le paiement doit être initié rapidement pour conserver le verrou de disponibilité.
         booking.expires_at = timezone.now() + timedelta(minutes=15)
         booking.save()
         # Return full detail
@@ -46,23 +47,53 @@ class BookingViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED
         )
 
+    @action(detail=False, methods=['get'], url_path='price-estimate', permission_classes=[permissions.AllowAny])
+    def price_estimate(self, request):
+        payload = {
+            'room_type_id': request.query_params.get('room_type_id') or request.query_params.get('room'),
+            'check_in_date': request.query_params.get('check_in_date') or request.query_params.get('check_in'),
+            'check_out_date': request.query_params.get('check_out_date') or request.query_params.get('check_out'),
+            'guest_count_adults': request.query_params.get('guest_count_adults') or request.query_params.get('adults') or 1,
+            'guest_count_children': request.query_params.get('guest_count_children') or request.query_params.get('children') or 0,
+        }
+        serializer = BookingPriceEstimateSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.to_representation(serializer.validated_data))
+
+    @action(detail=False, methods=['get'], url_path='user')
+    def user_bookings(self, request):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = BookingListSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        serializer = BookingListSerializer(queryset, many=True, context={'request': request})
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'])
     def cancel(self, request, booking_number=None):
         booking = self.get_object()
         user = request.user
 
-        if booking.status not in ('cart', 'confirmed'):
-            return Response({"detail": "Cette réservation ne peut pas être annulée dans son état actuel."},
-                            status=status.HTTP_400_BAD_REQUEST)
+        cancellable_statuses = (
+            Booking.PENDING_PAYMENT,
+            Booking.PENDING_HOST_VALIDATION,
+            Booking.CONFIRMED,
+        )
+        if booking.status not in cancellable_statuses:
+            return Response(
+                {"detail": "Cette réservation ne peut pas être annulée dans son état actuel."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Determine who is cancelling
         if booking.guest == user:
-            new_status = 'cancelled_by_guest'
-            # Calculate refund based on cancellation policy
-            refund = self._calculate_refund(booking)
+            refund = Decimal('0.00') if booking.status == Booking.PENDING_PAYMENT else self._calculate_refund(booking)
+            new_status = Booking.CANCELLED_REFUNDED if refund > 0 else Booking.CANCELLED
+            notification_title = 'Réservation annulée'
         elif booking.establishment.host == user:
-            new_status = 'cancelled_by_host'
-            refund = booking.total_amount  # Host cancellation = full refund
+            new_status = Booking.CANCELLED_REFUNDED
+            refund = booking.total_amount
+            notification_title = "Réservation annulée par l'hébergeur"
         else:
             return Response({"detail": "Permission refusée."}, status=status.HTTP_403_FORBIDDEN)
 
@@ -74,43 +105,54 @@ class BookingViewSet(viewsets.ModelViewSet):
             booking.refund_amount = refund
             booking.save()
 
-            # Restore availability
-            self._restore_availability(booking)
+            restore_availability(booking)
 
-            BookingStatusHistory.objects.create(
-                booking=booking, status=new_status, changed_by=user,
+            record_status(
+                booking, new_status, changed_by=user,
                 note=f"Annulation. Remboursement: {refund} FCFA."
             )
+            payment = booking.payments.order_by('-created_at').first()
+            if payment and refund > 0:
+                payment.status = 'refunded' if refund >= booking.total_amount else 'partially_refunded'
+                payment.refunded_at = timezone.now()
+                payment.save(update_fields=('status', 'refunded_at', 'updated_at'))
+
+        notify_user(
+            booking.guest,
+            'booking_cancelled',
+            notification_title,
+            f'La réservation {booking.booking_number} a été annulée.',
+            {'booking_number': booking.booking_number},
+        )
 
         return Response(BookingDetailSerializer(booking, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
     def check_in(self, request, booking_number=None):
         booking = self.get_object()
-        if booking.status != 'confirmed':
+        if booking.status != Booking.CONFIRMED:
             return Response({"detail": "La réservation doit être confirmée pour le check-in."},
                             status=status.HTTP_400_BAD_REQUEST)
-        booking.status = 'in_progress'
         booking.actual_check_in = timezone.now()
-        booking.save()
-        BookingStatusHistory.objects.create(
-            booking=booking, status='in_progress', changed_by=request.user,
-            note='Check-in effectué.'
-        )
+        booking.save(update_fields=('actual_check_in', 'updated_at'))
+        set_booking_status(booking, Booking.IN_PROGRESS, changed_by=request.user, note='Check-in effectué.')
         return Response(BookingDetailSerializer(booking, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
     def check_out(self, request, booking_number=None):
         booking = self.get_object()
-        if booking.status != 'in_progress':
+        if booking.status != Booking.IN_PROGRESS:
             return Response({"detail": "La réservation doit être en cours pour le check-out."},
                             status=status.HTTP_400_BAD_REQUEST)
-        booking.status = 'completed'
         booking.actual_check_out = timezone.now()
-        booking.save()
-        BookingStatusHistory.objects.create(
-            booking=booking, status='completed', changed_by=request.user,
-            note='Check-out effectué.'
+        booking.save(update_fields=('actual_check_out', 'updated_at'))
+        set_booking_status(booking, Booking.COMPLETED, changed_by=request.user, note='Check-out effectué.')
+        notify_user(
+            booking.guest,
+            'review_received',
+            'Avis demandé',
+            f'Votre séjour {booking.booking_number} est terminé. Vous pouvez laisser un avis.',
+            {'booking_number': booking.booking_number},
         )
         return Response(BookingDetailSerializer(booking, context={'request': request}).data)
 
@@ -135,15 +177,3 @@ class BookingViewSet(viewsets.ModelViewSet):
                 return booking.total_amount * Decimal('0.50')
             return Decimal('0.00')
 
-    def _restore_availability(self, booking):
-        from datetime import date as dt_date
-        nights = [(booking.check_in_date + timedelta(days=i))
-                  for i in range((booking.check_out_date - booking.check_in_date).days)]
-        for night in nights:
-            avail = RoomAvailability.objects.filter(room_type=booking.room_type, date=night).first()
-            if avail:
-                avail.available_count = min(
-                    avail.available_count + 1,
-                    booking.room_type.physical_room_count
-                )
-                avail.save()

@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 
 class Amenity(models.Model):
@@ -83,6 +84,10 @@ class Establishment(models.Model):
     check_out_time = models.TimeField(default='11:00')
     cancellation_policy = models.CharField(max_length=10, choices=CANCELLATION_POLICY, default='moderate')
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+    requires_manual_validation = models.BooleanField(
+        default=False,
+        help_text="Si actif, l'hébergeur doit valider une réservation après le paiement.",
+    )
     avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     review_count = models.PositiveIntegerField(default=0)
     is_featured = models.BooleanField(default=False)
@@ -100,6 +105,10 @@ class Establishment(models.Model):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        if self.host_id and self.host.role != 'host':
+            raise ValidationError({'host': "Un établissement doit appartenir à un hébergeur."})
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -131,6 +140,13 @@ class EstablishmentImage(models.Model):
     def __str__(self):
         return f"Image {self.display_order} - {self.establishment.name}"
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.is_primary:
+            EstablishmentImage.objects.filter(
+                establishment=self.establishment, is_primary=True
+            ).exclude(pk=self.pk).update(is_primary=False)
+
 
 class RoomType(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -157,6 +173,12 @@ class RoomType(models.Model):
     def __str__(self):
         return f"{self.name} - {self.establishment.name}"
 
+    def clean(self):
+        if self.physical_room_count < 1:
+            raise ValidationError({'physical_room_count': "Le nombre de chambres doit être supérieur à zéro."})
+        if self.base_price_per_night <= 0:
+            raise ValidationError({'base_price_per_night': "Le tarif doit être supérieur à zéro."})
+
 
 class RoomTypeImage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -172,6 +194,16 @@ class RoomTypeImage(models.Model):
     class Meta:
         db_table = 'room_type_images'
         ordering = ['display_order']
+
+    def __str__(self):
+        return f"Image {self.display_order} - {self.room_type}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.is_primary:
+            RoomTypeImage.objects.filter(
+                room_type=self.room_type, is_primary=True
+            ).exclude(pk=self.pk).update(is_primary=False)
 
 
 class RoomAvailability(models.Model):
@@ -196,3 +228,11 @@ class RoomAvailability(models.Model):
 
     def __str__(self):
         return f"{self.room_type.name} - {self.date}"
+
+    def clean(self):
+        if self.room_type_id and self.available_count > self.room_type.physical_room_count:
+            raise ValidationError({
+                'available_count': "La disponibilité ne peut pas dépasser le nombre de chambres physiques."
+            })
+        if self.special_price is not None and self.special_price <= 0:
+            raise ValidationError({'special_price': "Le tarif spécial doit être supérieur à zéro."})

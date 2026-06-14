@@ -38,6 +38,11 @@ class ReviewCreateSerializer(serializers.ModelSerializer):
                   'rating_communication', 'rating_location', 'rating_value',
                   'comment', 'photos')
 
+    def validate_rating_overall(self, value):
+        if not 1 <= value <= 5:
+            raise serializers.ValidationError("La note doit être comprise entre 1 et 5.")
+        return value
+
     def validate(self, data):
         booking = data['booking']
         user = self.context['request'].user

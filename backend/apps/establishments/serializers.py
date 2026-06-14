@@ -107,7 +107,7 @@ class EstablishmentListSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'name', 'slug', 'establishment_type', 'city_quarter', 'status',
             'avg_rating', 'review_count', 'primary_image', 'lowest_price',
-            'cancellation_policy', 'is_featured',
+            'cancellation_policy', 'requires_manual_validation', 'is_featured',
         )
 
     def get_primary_image(self, obj):
@@ -147,7 +147,10 @@ class EstablishmentCreateUpdateSerializer(serializers.ModelSerializer):
         read_only_fields = ('avg_rating', 'review_count', 'slug', 'status', 'created_at', 'updated_at')
 
     def create(self, validated_data):
-        validated_data['host'] = self.context['request'].user
+        user = self.context['request'].user
+        if user.role != 'host':
+            raise serializers.ValidationError("Seuls les hébergeurs peuvent créer un établissement.")
+        validated_data['host'] = user
         return super().create(validated_data)
 
     def update(self, instance, validated_data):

@@ -1,19 +1,10 @@
 import uuid
-from decimal import Decimal
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 
 class Payment(models.Model):
-    METHOD_CHOICES = [
-        ('wave', 'Wave'),
-        ('orange_money', 'Orange Money'),
-        ('mtn_money', 'MTN Mobile Money'),
-        ('moov_money', 'Moov Money'),
-        ('card', 'Carte Bancaire'),
-        ('bank_transfer', 'Virement Bancaire'),
-    ]
-
     STATUS_CHOICES = [
         ('pending', 'En attente'),
         ('processing', 'En cours'),
@@ -23,28 +14,61 @@ class Payment(models.Model):
         ('partially_refunded', 'Partiellement remboursé'),
     ]
 
+    METHOD_CHOICES = [
+        ('wave', 'Wave'),
+        ('orange_money', 'Orange Money'),
+        ('momo', 'MTN Mobile Money'),
+        ('card', 'Carte bancaire'),
+        ('cash', 'Espèces'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    booking = models.OneToOneField(
-        'bookings.Booking', on_delete=models.PROTECT, related_name='payment'
+    booking = models.ForeignKey(
+        'bookings.Booking', on_delete=models.CASCADE,
+        related_name='payments'
     )
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='XOF')
     payment_method = models.CharField(max_length=20, choices=METHOD_CHOICES)
-    provider_reference = models.CharField(max_length=200, blank=True, db_index=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    provider_reference = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='pending')
     failure_reason = models.TextField(blank=True)
     metadata = models.JSONField(default=dict, blank=True)
-    paid_at = models.DateTimeField(blank=True, null=True)
-    refunded_at = models.DateTimeField(blank=True, null=True)
+    
+    # Remboursement
+    refunded_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    refunded_at = models.DateTimeField(null=True, blank=True)
+    refund_reference = models.CharField(max_length=200, blank=True)
+    
+    # Facturation
+    invoice_number = models.CharField(max_length=50, unique=True, blank=True)
+    invoice_generated = models.BooleanField(default=False)
+    invoice_url = models.URLField(blank=True)
+    
+    paid_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'payments'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['booking', '-created_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['payment_method']),
+        ]
 
     def __str__(self):
-        return f"Paiement {self.id} - {self.booking.booking_number}"
+        return f"Payment {self.id} - {self.amount} {self.currency}"
+
+    def generate_invoice_number(self):
+        """Génère un numéro de facture unique"""
+        if not self.invoice_number:
+            timestamp = timezone.now().strftime('%Y%m%d')
+            random_num = str(uuid.uuid4())[:8].upper()
+            self.invoice_number = f"INV-{timestamp}-{random_num}"
+            self.save()
+        return self.invoice_number
 
 
 class Payout(models.Model):
@@ -57,53 +81,113 @@ class Payout(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     host = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-        related_name='payouts', limit_choices_to={'role': 'host'}
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='payouts'
     )
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    commission_deducted = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    net_amount = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    commission_deducted = models.DecimalField(max_digits=10, decimal_places=2)
+    net_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='XOF')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Période de paiement
     period_start = models.DateField()
     period_end = models.DateField()
-    paid_at = models.DateTimeField(blank=True, null=True)
+    
+    # Détails de virement
+    paid_at = models.DateTimeField(null=True, blank=True)
     transaction_reference = models.CharField(max_length=200, blank=True)
-    notes = models.TextField(blank=True)
+    failure_reason = models.TextField(blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'payouts'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['host', '-created_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['period_start', 'period_end']),
+        ]
 
     def __str__(self):
-        return f"Virement {self.id} - {self.host.email}"
+        return f"Payout {self.id} - {self.net_amount} {self.currency} to {self.host.email}"
 
 
 class CommissionSetting(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    establishment_type = models.CharField(
-        max_length=20, choices=[
-            ('hotel', 'Hôtel'), ('residence', 'Résidence'),
-            ('villa', 'Villa'), ('apartment', 'Appartement'),
-            ('guesthouse', 'Maison d\'hôtes'), ('hostel', 'Auberge'),
-        ],
-        blank=True, null=True
-    )
-    host = models.ForeignKey(
+    """Configuration des commissions par hébergeur"""
+    host = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-        related_name='commission_settings', blank=True, null=True,
-        limit_choices_to={'role': 'host'}
+        related_name='commission_settings'
     )
-    commission_percent = models.DecimalField(max_digits=5, decimal_places=2)
-    effective_from = models.DateField()
-    effective_to = models.DateField(blank=True, null=True)
-    is_default = models.BooleanField(default=False)
+    commission_percent = models.DecimalField(max_digits=5, decimal_places=2, default=15)
+    is_active = models.BooleanField(default=True)
+    effective_from = models.DateField(auto_now_add=True)
+    notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'commission_settings'
-        ordering = ['-effective_from']
 
     def __str__(self):
-        return f"Commission {self.commission_percent}%"
+        return f"Commission {self.commission_percent}% for {self.host.email}"
+
+
+class Invoice(models.Model):
+    """Modèle de facture"""
+    STATUS_CHOICES = [
+        ('draft', 'Brouillon'),
+        ('sent', 'Envoyée'),
+        ('paid', 'Payée'),
+        ('overdue', 'En retard'),
+        ('cancelled', 'Annulée'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    invoice_number = models.CharField(max_length=50, unique=True)
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name='invoices')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='invoices'
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='XOF')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    
+    # Dates
+    issue_date = models.DateField(auto_now_add=True)
+    due_date = models.DateField()
+    paid_date = models.DateField(null=True, blank=True)
+    
+    # Fichier PDF
+    pdf_file = models.FileField(upload_to='invoices/pdf/', blank=True, null=True)
+    pdf_url = models.URLField(blank=True)
+    
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'invoices'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['invoice_number']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"Invoice {self.invoice_number} - {self.total_amount} {self.currency}"
+
+    def generate_invoice_number(self):
+        """Génère un numéro de facture unique"""
+        if not self.invoice_number:
+            timestamp = timezone.now().strftime('%Y%m%d')
+            random_num = str(uuid.uuid4())[:8].upper()
+            self.invoice_number = f"INV-{timestamp}-{random_num}"
+            self.save()
+        return self.invoice_number

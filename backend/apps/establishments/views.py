@@ -1,5 +1,6 @@
 from datetime import date, timedelta
-from django.db.models import Min, Q, F
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, generics, status, permissions, parsers
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -43,6 +44,13 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user if self.request.user.is_authenticated else None
 
+        if self.action in ('update', 'partial_update', 'destroy'):
+            if user and user.is_staff_user:
+                return Establishment.objects.all()
+            if user:
+                return Establishment.objects.filter(host=user)
+            return Establishment.objects.none()
+
         # Pour my_establishments, retourner tous les établissements du host
         if self.action == 'my_establishments':
             if user:
@@ -76,9 +84,12 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
                     available_room_types = RoomType.objects.filter(
                         availabilities__date__in=nights,
                         availabilities__available_count__gt=0,
+                        availabilities__is_manually_blocked=False,
                         is_active=True
-                    ).values('establishment').distinct()
-                    queryset = queryset.filter(id__in=available_room_types)
+                    ).values('establishment_id').annotate(
+                        available_days=Count('availabilities__date', distinct=True)
+                    ).filter(available_days=len(nights))
+                    queryset = queryset.filter(id__in=available_room_types.values('establishment_id'))
             except ValueError:
                 pass
 
@@ -121,11 +132,16 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class RoomTypeViewSet(viewsets.ModelViewSet):
+class RoomTypeViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = RoomTypeDetailSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
+        user = self.request.user
+        if self.action == 'bulk_update_availability' and user.is_authenticated:
+            if user.is_staff_user:
+                return RoomType.objects.all()
+            return RoomType.objects.filter(establishment__host=user)
         return RoomType.objects.filter(establishment__status='active')
 
     @action(detail=True, methods=['get'])
@@ -174,6 +190,7 @@ class RoomTypeViewSet(viewsets.ModelViewSet):
                 obj.is_manually_blocked = is_blocked
             if special_price is not None:
                 obj.special_price = special_price
+            obj.full_clean()
             obj.save()
 
         return Response({"detail": "Disponibilités mises à jour."})
@@ -218,7 +235,7 @@ class EstablishmentImageDeleteView(generics.DestroyAPIView):
         return EstablishmentImage.objects.filter(establishment__host=self.request.user)
 
     def get_object(self):
-        return self.get_queryset().get(pk=self.kwargs['pk'])
+        return get_object_or_404(self.get_queryset(), pk=self.kwargs['pk'])
 
 
 class RoomTypeCreateView(generics.CreateAPIView):
@@ -255,6 +272,14 @@ class RoomTypeCreateView(generics.CreateAPIView):
                 image=img_file,
                 is_primary=(i == 0),
                 display_order=i,
+            )
+
+        today = date.today()
+        for offset in range(180):
+            RoomAvailability.objects.get_or_create(
+                room_type=room_type,
+                date=today + timedelta(days=offset),
+                defaults={'available_count': room_type.physical_room_count},
             )
 
         return Response(RoomTypeDetailSerializer(room_type, context={'request': request}).data,

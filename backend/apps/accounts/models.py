@@ -1,5 +1,6 @@
 import uuid
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -59,6 +60,18 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.email} ({self.get_role_display()})"
+
+    def save(self, *args, **kwargs):
+        if self.role == 'superadmin':
+            self.is_staff = True
+            self.is_superuser = True
+        elif self.role == 'moderator':
+            self.is_staff = True
+            self.is_superuser = False
+        else:
+            self.is_staff = False
+            self.is_superuser = False
+        super().save(*args, **kwargs)
 
     @property
     def is_host(self):
@@ -125,3 +138,11 @@ class HostProfile(models.Model):
 
     def __str__(self):
         return f"Profil Hébergeur: {self.user.email}"
+
+    def clean(self):
+        if self.user_id and self.user.role != 'host':
+            raise ValidationError({'user': "Le profil hébergeur exige un utilisateur avec le rôle hébergeur."})
+
+    def save(self, *args, **kwargs):
+        self.is_verified = self.verification_status == 'verified'
+        super().save(*args, **kwargs)

@@ -1,34 +1,45 @@
-# AfriStay
+# NoamHome
 
-Plateforme de réservation d'hôtels et de résidences en ligne — Côte d'Ivoire et Afrique de l'Ouest.
+Plateforme de réservation d'hôtels et de résidences premium en ligne — Côte d'Ivoire et Afrique de l'Ouest.
 
 ## Architecture
 
 - **Backend** : Django 5 + Django REST Framework + JWT + PostgreSQL + Redis
-- **Frontend** : React 18 + Vite + Tailwind CSS + React Query
+- **Frontend** : Vue.js + Vite + CSS moderne (PWA-ready)
 - **Communication** : API REST JSON
+- **PWA** : Progressive Web App avec service worker et manifest
 
 ## Structure du projet
 
 ```
 mon-projet/
 ├── backend/          # Projet Django
-│   ├── afristay/     # Configuration projet
+│   ├── NoamHome/     # Configuration projet
 │   ├── apps/
 │   │   ├── accounts/       # Authentification & profils
 │   │   ├── establishments/ # Hébergements, chambres, disponibilités
 │   │   ├── bookings/       # Réservations & cycle de vie
-│   │   ├── payments/       # Paiements, virements, commissions
+│   │   ├── payments/       # Paiements, virements, commissions, factures
 │   │   ├── reviews/        # Avis & réponses
-│   │   └── notifications/  # Notifications utilisateur
+│   │   ├── notifications/  # Notifications (email, SMS, push)
+│   │   ├── disputes/       # Gestion des litiges
+│   │   ├── public/         # API publique pour visiteurs
+│   │   ├── client/         # API dashboard client
+│   │   ├── owner/          # API dashboard propriétaire
+│   │   └── admin_api/      # API dashboard admin
 │   ├── manage.py
 │   └── requirements.txt
-├── frontend/         # Application React
+├── frontend/         # Application Vue.js PWA
 │   ├── src/
-│   │   ├── api/            # Client Axios
-│   │   ├── components/     # Layout, Navbar, Footer, ProtectedRoute
-│   │   ├── context/        # AuthContext
-│   │   └── pages/          # Toutes les pages
+│   │   ├── views/          # Toutes les vues (search, listing, booking, dashboards)
+│   │   ├── services/       # Services API et session
+│   │   ├── utils.js        # Utilitaires
+│   │   ├── styles.css      # Design system moderne
+│   │   ├── app.js          # Application Vue
+│   │   └── main.js         # Point d'entrée
+│   ├── public/
+│   │   ├── manifest.json    # Manifest PWA
+│   │   └── sw.js           # Service Worker
 │   ├── package.json
 │   └── vite.config.js
 └── README.md
@@ -131,21 +142,58 @@ Le proxy Vite redirige automatiquement les appels `/api` vers le backend Django.
 
 ## Endpoints API principaux
 
+### Authentification
 | Ressource | Endpoint |
 |-----------|----------|
 | Login JWT | `POST /api/auth/login/` |
 | Refresh JWT | `POST /api/auth/refresh/` |
 | Inscription | `POST /api/accounts/register/` |
 | Profil | `GET/PUT /api/accounts/me/` |
-| Hébergements | `GET /api/establishments/` |
-| Détail hébergement | `GET /api/establishments/{slug}/` |
-| Disponibilités | `GET /api/establishments/{slug}/availability/` |
+
+### Public (Visiteurs)
+| Ressource | Endpoint |
+|-----------|----------|
+| Hébergements en vedette | `GET /api/public/featured/` |
+| Destinations populaires | `GET /api/public/locations/` |
+| Recherche | `GET /api/public/listings/` |
+| Détail hébergement | `GET /api/public/listings/{slug}/` |
+| Avis | `GET /api/public/listings/{slug}/reviews/` |
+| Disponibilités | `POST /api/public/listings/availability/` |
+
+### Client
+| Ressource | Endpoint |
+|-----------|----------|
+| Dashboard | `GET /api/client/dashboard/` |
+| Mes réservations | `GET /api/client/bookings/` |
+| Annuler réservation | `POST /api/client/bookings/{id}/cancel/` |
+| Mes avis | `GET /api/client/reviews/` |
+
+### Propriétaire
+| Ressource | Endpoint |
+|-----------|----------|
+| Dashboard | `GET /api/owner/dashboard/` |
+| Mes établissements | `GET /api/owner/establishments/` |
+| Mes chambres | `GET /api/owner/rooms/` |
+| Disponibilités | `POST /api/owner/availability/bulk_update/` |
+| Réservations reçues | `GET /api/owner/bookings/` |
+
+### Admin
+| Ressource | Endpoint |
+|-----------|----------|
+| Dashboard | `GET /api/admin/dashboard/` |
+| Utilisateurs | `GET /api/admin/users/` |
+| Établissements | `GET /api/admin/establishments/` |
+| Litiges | `GET /api/admin/disputes/` |
+| Paiements | `GET /api/admin/payments/` |
+| Avis | `GET /api/admin/reviews/` |
+
+### Systèmes transverses
+| Ressource | Endpoint |
+|-----------|----------|
 | Réservations | `POST /api/bookings/` |
-| Mes réservations | `GET /api/bookings/` |
-| Annuler réservation | `POST /api/bookings/{id}/cancel/` |
 | Paiements | `POST /api/payments/payments/` |
-| Avis | `GET/POST /api/reviews/` |
 | Notifications | `GET /api/notifications/` |
+| Litiges | `GET /api/disputes/` |
 
 ---
 
@@ -164,12 +212,14 @@ Le proxy Vite redirige automatiquement les appels `/api` vers le backend Django.
 
 ### Voyageur
 - Recherche par destination, dates, voyageurs
-- Filtres (type, prix, équipements, politique d'annulation)
+- Filtres avancés (type, prix, équipements, politique d'annulation)
 - Fiche détaillée avec photos, équipements, avis
 - Réservation en ligne avec calcul de prix (nuitées + commission)
-- Paiement simulé (Wave, Mobile Money, Carte)
+- Paiement (Wave, Orange Money, MTN Mobile Money, Carte)
+- Génération automatique de factures
 - Confirmation avec numéro de réservation
 - Historique des réservations
+- Programme de fidélité (points, niveaux, réductions)
 - Profil utilisateur
 
 ### Hébergeur
@@ -178,11 +228,27 @@ Le proxy Vite redirige automatiquement les appels `/api` vers le backend Django.
 - Gestion du calendrier et des disponibilités
 - Tarification par nuit avec prix spéciaux
 - Visualisation des réservations reçues
+- Approbation/rejet des réservations
+- Gestion des versements
+- Configuration des commissions
 
 ### Admin
-- Interface Django Admin complète
-- Gestion des utilisateurs, établissements, réservations, paiements, avis
+- Tableau de bord avec KPIs globaux
+- Gestion des utilisateurs (suspendre/activer)
+- Gestion des établissements (approuver/rejeter)
+- Gestion des litiges (résoudre, escalader)
+- Supervision des paiements
+- Modération des avis
 - Configuration des commissions
+
+### Systèmes transverses
+- **Système de notifications complet** : Email, SMS, Push notifications
+- **Système de paiement robuste** : Intégration Wave, Orange Money, MTN
+- **Facturation automatique** : Génération de factures PDF
+- **Commission automatique** : Calcul automatique des commissions
+- **Programme de fidélité** : Points, niveaux (Bronze, Silver, Gold, Platinum), réductions
+- **Gestion des litiges** : Système complet de gestion des conflits
+- **Sécurité avancée** : CSRF, cookies sécurisés, headers de sécurité
 
 ---
 
@@ -198,15 +264,16 @@ Le proxy Vite redirige automatiquement les appels `/api` vers le backend Django.
 - python-dotenv
 - Celery + Redis (tâches asynchrones)
 - Whitenoise (fichiers statiques)
+- Unfold (interface admin moderne)
 
 ### Frontend
-- React 18 + Vite
-- React Router DOM 6
-- React Query (cache & state serveur)
+- Vue.js 3 + Vite
+- Design system moderne CSS (mobile-first)
+- PWA (Progressive Web App)
+- Service Worker pour cache offline
+- Manifest PWA pour installation
 - Axios (HTTP client)
-- Tailwind CSS
-- Lucide React (icônes)
-- date-fns (dates)
+- Support PWA complet
 
 ---
 
@@ -220,3 +287,7 @@ Le proxy Vite redirige automatiquement les appels `/api` vers le backend Django.
 ---
 
 *Produit pensé selon le paradoxe de Jevons et la méthode BMAIC.*
+
+## Support
+
+Pour toute question ou problème, contactez l'équipe de développement.

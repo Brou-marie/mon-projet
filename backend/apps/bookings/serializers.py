@@ -1,11 +1,9 @@
-from datetime import date, timedelta
-from decimal import Decimal
+from datetime import date
 from django.db import transaction
 from rest_framework import serializers
 from .models import Booking, BookingStatusHistory
-from apps.establishments.models import RoomType, RoomAvailability
-from apps.payments.models import CommissionSetting
-from django.conf import settings
+from .services import booking_nights, decrement_availability, quote_room_type, record_status
+from apps.establishments.models import RoomType
 
 
 class BookingStatusHistorySerializer(serializers.ModelSerializer):
@@ -65,6 +63,12 @@ class BookingCreateSerializer(serializers.ModelSerializer):
                   'guest_count_adults', 'guest_count_children', 'guest_notes')
 
     def validate(self, data):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError("Vous devez être connecté pour réserver.")
+        if request.user.role != 'guest':
+            raise serializers.ValidationError("Seul un voyageur peut effectuer une réservation.")
+
         check_in = data['check_in_date']
         check_out = data['check_out_date']
 
@@ -80,25 +84,25 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         except RoomType.DoesNotExist:
             raise serializers.ValidationError({"room_type_id": "Type de chambre invalide."})
 
+        if room_type.establishment.status != 'active':
+            raise serializers.ValidationError({"room_type_id": "Cet hébergement n'est pas disponible à la réservation."})
+
+        adults = data.get('guest_count_adults', 1)
+        children = data.get('guest_count_children', 0)
+        if adults > room_type.capacity_adults:
+            raise serializers.ValidationError({"guest_count_adults": "Ce type de chambre ne peut pas accueillir autant d'adultes."})
+        if children > room_type.capacity_children:
+            raise serializers.ValidationError({"guest_count_children": "Ce type de chambre ne peut pas accueillir autant d'enfants."})
+
         data['room_type'] = room_type
         data['establishment'] = room_type.establishment
 
-        # Check availability for each night
-        nights = [(check_in + timedelta(days=i)) for i in range((check_out - check_in).days)]
-        for night in nights:
-            availability = RoomAvailability.objects.filter(
-                room_type=room_type, date=night
-            ).first()
-            if not availability:
-                # If no record, check if physical count is available (default assumption)
-                # But to be safe, require explicit availability records
-                raise serializers.ValidationError(
-                    {"dates": f"Aucune disponibilité enregistrée pour le {night}."}
-                )
-            if availability.is_manually_blocked or availability.available_count <= 0:
-                raise serializers.ValidationError(
-                    {"dates": f"Le type de chambre n'est pas disponible pour le {night}."}
-                )
+        quote = quote_room_type(room_type, check_in, check_out)
+        if not quote['available']:
+            unavailable = ', '.join(d.strftime('%d/%m/%Y') for d in quote['unavailable_dates'])
+            raise serializers.ValidationError(
+                {"dates": f"Le type de chambre n'est pas disponible pour ces dates: {unavailable}."}
+            )
 
         return data
 
@@ -106,65 +110,81 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         room_type = validated_data.pop('room_type')
         establishment = validated_data.pop('establishment')
+        validated_data.pop('room_type_id', None)
         check_in = validated_data['check_in_date']
         check_out = validated_data['check_out_date']
-        nights = [(check_in + timedelta(days=i)) for i in range((check_out - check_in).days)]
-
-        # Calculate pricing
-        subtotal = Decimal('0.00')
-        price_breakdown = {}
-        for night in nights:
-            avail = RoomAvailability.objects.filter(room_type=room_type, date=night).first()
-            nightly_price = avail.special_price if avail and avail.special_price else room_type.base_price_per_night
-            subtotal += Decimal(str(nightly_price))
-            price_breakdown[str(night)] = str(nightly_price)
-
-        # Platform fee: 10% of subtotal (configurable)
-        platform_fee_percent = Decimal(str(getattr(settings, 'DEFAULT_PLATFORM_COMMISSION_PERCENT', 15)))
-
-        # Check host commission override
-        host_profile = establishment.host.host_profile if hasattr(establishment.host, 'host_profile') else None
-        if host_profile and host_profile.commission_override_percent is not None:
-            platform_fee_percent = host_profile.commission_override_percent
-
-        commission_override = CommissionSetting.objects.filter(
-            establishment_type=establishment.establishment_type,
-            effective_from__lte=date.today()
-        ).order_by('-effective_from').first()
-        if commission_override:
-            platform_fee_percent = commission_override.commission_percent
-
-        platform_fee = (subtotal * platform_fee_percent / Decimal('100')).quantize(Decimal('0.01'))
-        tax_amount = Decimal('0.00')  # configurable per city
-        total_amount = subtotal + platform_fee + tax_amount
-        commission_amount = platform_fee
-        host_payout = subtotal - commission_amount
+        nights = booking_nights(check_in, check_out)
+        quote = quote_room_type(room_type, check_in, check_out, lock=True)
+        if not quote['available'] or not decrement_availability(room_type, nights):
+            raise serializers.ValidationError({"dates": "Le type de chambre n'est plus disponible pour ces dates."})
 
         booking = Booking.objects.create(
             guest=self.context['request'].user,
             room_type=room_type,
             establishment=establishment,
-            subtotal=subtotal,
-            platform_fee=platform_fee,
-            tax_amount=tax_amount,
-            total_amount=total_amount,
-            commission_amount=commission_amount,
-            host_payout=host_payout,
-            price_breakdown=price_breakdown,
+            status=Booking.PENDING_PAYMENT,
+            subtotal=quote['subtotal'],
+            platform_fee=quote['platform_fee'],
+            tax_amount=quote['tax_amount'],
+            total_amount=quote['total_amount'],
+            commission_amount=quote['commission_amount'],
+            host_payout=quote['host_payout'],
+            price_breakdown=quote['price_breakdown'],
             **validated_data
         )
 
-        # Temporarily block availability for 15 minutes
-        for night in nights:
-            avail = RoomAvailability.objects.get(room_type=room_type, date=night)
-            avail.available_count = max(0, avail.available_count - 1)
-            avail.save()
-
-        # Log status history
-        BookingStatusHistory.objects.create(
-            booking=booking,
-            status='cart',
-            note='Réservation initiée, en attente de paiement.'
-        )
+        record_status(booking, Booking.PENDING_PAYMENT, note='Réservation initiée, en attente de paiement.')
 
         return booking
+
+
+class BookingPriceEstimateSerializer(serializers.Serializer):
+    room_type_id = serializers.UUIDField()
+    check_in_date = serializers.DateField()
+    check_out_date = serializers.DateField()
+    guest_count_adults = serializers.IntegerField(min_value=1, default=1)
+    guest_count_children = serializers.IntegerField(min_value=0, default=0)
+
+    def validate(self, data):
+        check_in = data['check_in_date']
+        check_out = data['check_out_date']
+        if check_in >= check_out:
+            raise serializers.ValidationError({"dates": "La date de départ doit être après la date d'arrivée."})
+        if check_in < date.today():
+            raise serializers.ValidationError({"check_in_date": "La date d'arrivée ne peut pas être dans le passé."})
+
+        try:
+            room_type = RoomType.objects.select_related('establishment', 'establishment__host').get(
+                id=data['room_type_id'],
+                is_active=True,
+            )
+        except RoomType.DoesNotExist:
+            raise serializers.ValidationError({"room_type_id": "Type de chambre invalide."})
+
+        if room_type.establishment.status != 'active':
+            raise serializers.ValidationError({"room_type_id": "Cet hébergement n'est pas réservable."})
+        if data.get('guest_count_adults', 1) > room_type.capacity_adults:
+            raise serializers.ValidationError({"guest_count_adults": "Capacité adultes insuffisante."})
+        if data.get('guest_count_children', 0) > room_type.capacity_children:
+            raise serializers.ValidationError({"guest_count_children": "Capacité enfants insuffisante."})
+
+        data['room_type'] = room_type
+        return data
+
+    def to_representation(self, instance):
+        room_type = instance['room_type']
+        quote = quote_room_type(room_type, instance['check_in_date'], instance['check_out_date'])
+        return {
+            'room_type_id': str(room_type.id),
+            'room_type_name': room_type.name,
+            'establishment_name': room_type.establishment.name,
+            'available': quote['available'],
+            'unavailable_dates': [day.isoformat() for day in quote['unavailable_dates']],
+            'total_nights': quote['total_nights'],
+            'price_breakdown': quote['price_breakdown'],
+            'subtotal': quote['subtotal'],
+            'platform_fee': quote['platform_fee'],
+            'tax_amount': quote['tax_amount'],
+            'total_amount': quote['total_amount'],
+            'currency': 'XOF',
+        }

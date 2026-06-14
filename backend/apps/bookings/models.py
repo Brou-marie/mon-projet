@@ -2,19 +2,37 @@ import uuid
 from decimal import Decimal
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 
 
 class Booking(models.Model):
+    PENDING_PAYMENT = 'pending_payment'
+    PAID = 'paid'
+    PENDING_HOST_VALIDATION = 'pending_host_validation'
+    CONFIRMED = 'confirmed'
+    IN_PROGRESS = 'in_progress'
+    COMPLETED = 'completed'
+    CANCELLED = 'cancelled'
+    CANCELLED_REFUNDED = 'cancelled_refunded'
+    REFUNDED = 'refunded'
+    REJECTED_BY_HOST = 'rejected_by_host'
+    DISPUTE = 'dispute'
+    NO_SHOW = 'no_show'
+
     STATUS_CHOICES = [
-        ('cart', 'Panier'),
-        ('confirmed', 'Confirmée'),
-        ('in_progress', 'En cours'),
-        ('completed', 'Terminée'),
-        ('cancelled_by_guest', 'Annulée par le voyageur'),
-        ('cancelled_by_host', 'Annulée par l\'hébergeur'),
-        ('dispute', 'Litige'),
-        ('no_show', 'Non présenté'),
+        (PENDING_PAYMENT, 'En attente de paiement'),
+        (PAID, 'Payée'),
+        (PENDING_HOST_VALIDATION, "En attente de validation par l'hébergeur"),
+        (CONFIRMED, 'Confirmée'),
+        (IN_PROGRESS, 'En cours'),
+        (COMPLETED, 'Terminée'),
+        (CANCELLED, 'Annulée'),
+        (CANCELLED_REFUNDED, 'Annulée et remboursée'),
+        (REFUNDED, 'Remboursée'),
+        (REJECTED_BY_HOST, "Refusée par l'hébergeur"),
+        (DISPUTE, 'Litige'),
+        (NO_SHOW, 'Non présenté'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -36,7 +54,7 @@ class Booking(models.Model):
     guest_count_adults = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)])
     guest_count_children = models.PositiveSmallIntegerField(default=0)
 
-    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='cart')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default=PENDING_PAYMENT)
     total_nights = models.PositiveSmallIntegerField(default=0)
     price_breakdown = models.JSONField(default=dict, blank=True)
 
@@ -83,12 +101,30 @@ class Booking(models.Model):
     def __str__(self):
         return f"Réservation {self.booking_number} - {self.guest.email}"
 
+    def clean(self):
+        errors = {}
+        if self.check_in_date and self.check_out_date and self.check_in_date >= self.check_out_date:
+            errors['check_out_date'] = "La date de départ doit être après la date d’arrivée."
+        if (
+            self.room_type_id
+            and self.establishment_id
+            and self.room_type.establishment_id != self.establishment_id
+        ):
+            errors['room_type'] = "Le type de chambre doit appartenir à l’établissement sélectionné."
+        if self.guest_id and self.guest.role != 'guest':
+            errors['guest'] = "La réservation doit appartenir à un voyageur."
+        if errors:
+            raise ValidationError(errors)
+
     def save(self, *args, **kwargs):
         if not self.booking_number:
             import random
-            self.booking_number = f"NOAM{random.randint(10000000, 99999999)}"
+            while not self.booking_number:
+                candidate = f"NOAM{random.randint(10000000, 99999999)}"
+                if not Booking.objects.filter(booking_number=candidate).exists():
+                    self.booking_number = candidate
         if self.check_in_date and self.check_out_date:
-            self.total_nights = (self.check_out_date - self.check_in_date).days
+            self.total_nights = max(0, (self.check_out_date - self.check_in_date).days)
         super().save(*args, **kwargs)
 
 
@@ -97,7 +133,7 @@ class BookingStatusHistory(models.Model):
     booking = models.ForeignKey(
         Booking, on_delete=models.CASCADE, related_name='status_history'
     )
-    status = models.CharField(max_length=25, choices=Booking.STATUS_CHOICES)
+    status = models.CharField(max_length=30, choices=Booking.STATUS_CHOICES)
     changed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         blank=True, null=True

@@ -14,6 +14,13 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Review.objects.filter(is_published=True)
+        if self.action in ('update', 'partial_update', 'destroy'):
+            if self.request.user.is_authenticated and self.request.user.is_staff_user:
+                queryset = Review.objects.all()
+            elif self.request.user.is_authenticated:
+                queryset = Review.objects.filter(reviewer=self.request.user)
+            else:
+                queryset = Review.objects.none()
         establishment_id = self.request.query_params.get('establishment')
         if establishment_id:
             queryset = queryset.filter(establishment_id=establishment_id)
@@ -32,7 +39,10 @@ class ReviewViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def respond(self, request, id=None):
         review = self.get_object()
-        serializer = ReviewResponseCreateSerializer(data=request.data, context={'request': request})
+        serializer = ReviewResponseCreateSerializer(
+            data={**request.data, 'review': review.pk},
+            context={'request': request},
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(ReviewSerializer(review, context={'request': request}).data, status=status.HTTP_201_CREATED)
