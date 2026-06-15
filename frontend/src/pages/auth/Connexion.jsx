@@ -36,7 +36,7 @@ export function PageConnexion() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 font-bold text-2xl">
-            <span className="bg-primary-600 text-white w-10 h-10 rounded-xl flex items-center justify-center font-black">NH</span>
+
             <span className="text-gray-900">Noam<span className="text-primary-600">Home</span></span>
           </Link>
           <h1 className="text-2xl font-bold text-gray-900 mt-6">Connexion</h1>

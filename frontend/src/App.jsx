@@ -43,7 +43,7 @@ export default function App() {
 
             {/* ── Pages publiques ── */}
             <Route element={<DispositionPrincipale />}>
-              <Route path="/" element={<PageAccueil />} />
+              <Route path="/" element={<RoutePubliqueSeul><PageAccueil /></RoutePubliqueSeul>} />
               <Route path="/hebergements" element={<PageListeHebergements />} />
               <Route path="/hebergements/:slug" element={<PageDetailHebergement />} />
               <Route path="/connexion" element={<RoutePubliqueSeul><PageConnexion /></RoutePubliqueSeul>} />

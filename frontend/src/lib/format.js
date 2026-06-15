@@ -48,15 +48,15 @@ export const POLITIQUES = {
 
 /** Statuts de réservation */
 export const STATUTS_RESA = {
-  pending_payment: 'En attente de paiement',
+  pending_payment: 'Paiement à effectuer',
   paid: 'Payée',
-  pending_host_validation: "En attente de validation",
+  pending_host_validation: "En attente de validation de l'hébergeur",
   confirmed: 'Confirmée',
   in_progress: 'En cours',
   completed: 'Terminée',
   cancelled: 'Annulée',
   cancelled_refunded: 'Annulée & remboursée',
-  rejected_by_host: "Refusée",
+  rejected_by_host: "Refusée par l'hébergeur",
   dispute: 'Litige',
   no_show: 'Non présenté',
 }

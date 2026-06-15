@@ -3,15 +3,15 @@ import { Circle } from 'lucide-react'
 
 const STATUTS = {
   // Réservations
-  pending_payment:       { libelle: 'En attente de paiement', classe: 'badge-jaune' },
+  pending_payment:       { libelle: 'Paiement à effectuer', classe: 'badge-jaune' },
   paid:                  { libelle: 'Payée',                  classe: 'badge-bleu' },
-  pending_host_validation: { libelle: 'Validation hébergeur', classe: 'badge-jaune' },
+  pending_host_validation: { libelle: "En attente de validation de l'hébergeur", classe: 'badge-jaune' },
   confirmed:             { libelle: 'Confirmée',              classe: 'badge-vert' },
   in_progress:           { libelle: 'En cours',               classe: 'badge-bleu' },
   completed:             { libelle: 'Terminée',               classe: 'badge-vert' },
   cancelled:             { libelle: 'Annulée',                classe: 'badge-rouge' },
   cancelled_refunded:    { libelle: 'Annulée & remboursée',   classe: 'badge-gris' },
-  rejected_by_host:      { libelle: 'Refusée',                classe: 'badge-rouge' },
+  rejected_by_host:      { libelle: "Refusée par l'hébergeur", classe: 'badge-rouge' },
   dispute:               { libelle: 'Litige',                 classe: 'badge-rouge' },
   no_show:               { libelle: 'Non présenté',           classe: 'badge-rouge' },
   // Établissements

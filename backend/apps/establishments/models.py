@@ -83,9 +83,9 @@ class Establishment(models.Model):
     check_in_time = models.TimeField(default='14:00')
     check_out_time = models.TimeField(default='11:00')
     cancellation_policy = models.CharField(max_length=10, choices=CANCELLATION_POLICY, default='moderate')
-    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='active')
     requires_manual_validation = models.BooleanField(
-        default=False,
+        default=True,
         help_text="Si actif, l'hébergeur doit valider une réservation après le paiement.",
     )
     avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)

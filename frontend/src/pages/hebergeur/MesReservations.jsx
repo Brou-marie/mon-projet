@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, User, BedDouble, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { Calendar, User, BedDouble, CheckCircle, XCircle, Clock, LogIn, LogOut } from 'lucide-react'
 import { api } from '../../services/api'
 import { BadgeStatut } from '../../composants/ui/Badge'
 import { SectionChargement } from '../../composants/ui/Chargement'
@@ -23,11 +23,16 @@ export function PageReservationsHebergeur() {
   useEffect(() => { charger() }, [])
 
   const handleAction = async (id, action) => {
-    const label = action === 'approve' ? 'approuver' : 'rejeter'
-    if (!confirm(`Voulez-vous vraiment ${label} cette réservation ?`)) return
+    const labels = {
+      approve: 'approuver',
+      reject: 'rejeter',
+      check_in: 'effectuer le check-in',
+      check_out: 'effectuer le check-out',
+    }
+    if (!confirm(`Voulez-vous vraiment ${labels[action]} cette réservation ?`)) return
     try {
       await api.post(`/owner/bookings/${id}/${action}/`, {})
-      setMessage({ type: 'succes', texte: `Réservation ${action === 'approve' ? 'approuvée' : 'rejetée'}.` })
+      setMessage({ type: 'succes', texte: `Action réussie : ${labels[action]}.` })
       charger()
     } catch (e) {
       setMessage({ type: 'erreur', texte: e.message })
@@ -112,7 +117,19 @@ export function PageReservationsHebergeur() {
                       {formatPlageDates(r.check_in_date, r.check_out_date)}
                     </p>
                   </div>
-                  <p className="font-bold text-primary-600 text-lg">{formatPrix(r.total_amount)}</p>
+                  <div className="flex items-center gap-3">
+                    <p className="font-bold text-primary-600 text-lg">{formatPrix(r.total_amount)}</p>
+                    {r.status === 'confirmed' && (
+                      <button onClick={() => handleAction(r.id, 'check_in')} className="btn-primary btn-sm gap-2">
+                        <LogIn className="w-4 h-4" /> Check-in
+                      </button>
+                    )}
+                    {r.status === 'in_progress' && (
+                      <button onClick={() => handleAction(r.id, 'check_out')} className="btn-primary btn-sm gap-2">
+                        <LogOut className="w-4 h-4" /> Check-out
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

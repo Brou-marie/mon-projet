@@ -68,7 +68,7 @@ export function DispositionTableauBord() {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-100">
         <Link to="/" className="flex items-center gap-2 font-bold text-lg text-gray-900" onClick={onClick}>
-          <span className="bg-primary-600 text-white w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black">NH</span>
+    
           NoamHome
         </Link>
       </div>
@@ -142,7 +142,7 @@ export function DispositionTableauBord() {
             <Menu className="w-5 h-5" />
           </button>
           <Link to="/" className="flex items-center gap-2 font-bold text-primary-700">
-            <span className="bg-primary-600 text-white w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black">NH</span>
+
             NoamHome
           </Link>
           <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">

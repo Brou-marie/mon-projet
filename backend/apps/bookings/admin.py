@@ -108,9 +108,9 @@ class BookingAdmin(ModelAdmin):
         changed = 0
         for booking in queryset.filter(status__in=from_statuses):
             booking.status = to_status
-            if to_status == 'in_progress':
+            if to_status == Booking.IN_PROGRESS:
                 booking.actual_check_in = timezone.now()
-            elif to_status == 'completed':
+            elif to_status == Booking.COMPLETED:
                 booking.actual_check_out = timezone.now()
             booking.save()
             BookingStatusHistory.objects.create(
@@ -119,17 +119,17 @@ class BookingAdmin(ModelAdmin):
             changed += 1
         self.message_user(request, f'{changed} réservation(s) mise(s) à jour.')
 
-    @admin.action(description='Confirmer les réservations au panier')
+    @admin.action(description='Confirmer les réservations en attente de paiement')
     def confirm_bookings(self, request, queryset):
-        self._transition(request, queryset, ('cart',), 'confirmed', 'Confirmation administrative.')
+        self._transition(request, queryset, (Booking.PENDING_PAYMENT, Booking.PENDING_HOST_VALIDATION), Booking.CONFIRMED, 'Confirmation administrative.')
 
     @admin.action(description='Démarrer les séjours confirmés')
     def start_stays(self, request, queryset):
-        self._transition(request, queryset, ('confirmed',), 'in_progress', 'Check-in administratif.')
+        self._transition(request, queryset, (Booking.CONFIRMED,), Booking.IN_PROGRESS, 'Check-in administratif.')
 
     @admin.action(description='Terminer les séjours en cours')
     def complete_stays(self, request, queryset):
-        self._transition(request, queryset, ('in_progress',), 'completed', 'Check-out administratif.')
+        self._transition(request, queryset, (Booking.IN_PROGRESS,), Booking.COMPLETED, 'Check-out administratif.')
 
 
 @admin.register(BookingStatusHistory)

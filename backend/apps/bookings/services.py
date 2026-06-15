@@ -74,6 +74,9 @@ def quote_room_type(room_type, check_in, check_out, lock=False):
 
 
 def decrement_availability(room_type, nights):
+    from django.db.models import Q
+    from .models import Booking
+    
     availability_by_date = {
         availability.date: availability
         for availability in RoomAvailability.objects.select_for_update().filter(
@@ -81,6 +84,19 @@ def decrement_availability(room_type, nights):
             date__in=nights,
         )
     }
+
+    # Vérifier les réservations actives pour ces dates
+    active_statuses = [Booking.CONFIRMED, Booking.IN_PROGRESS]
+    conflicting_bookings = Booking.objects.filter(
+        room_type=room_type,
+        status__in=active_statuses,
+    ).filter(
+        # Chevauchement de dates
+        Q(check_in_date__lt=max(nights)) & Q(check_out_date__gt=min(nights))
+    )
+    
+    if conflicting_bookings.exists():
+        return False
 
     for night in nights:
         availability = availability_by_date.get(night)

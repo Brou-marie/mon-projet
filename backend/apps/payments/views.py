@@ -47,7 +47,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         booking = serializer.validated_data['booking']
         payment = serializer.save(status='pending', amount=booking.total_amount)
 
-        # Endpoint historique du frontend: paiement simulé en une étape.
+        # Confirmation automatique du paiement pour le développement
         return confirm_payment(payment, changed_by=self.request.user)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])

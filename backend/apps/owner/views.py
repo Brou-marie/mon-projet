@@ -210,3 +210,37 @@ class OwnerBookingViewSet(viewsets.ReadOnlyModelViewSet):
         booking.save()
         
         return Response({'detail': 'Réservation rejetée'})
+    
+    @action(detail=True, methods=['post'])
+    def check_in(self, request, pk=None):
+        """Effectuer le check-in d'une réservation"""
+        booking = self.get_object()
+        
+        if booking.status != Booking.CONFIRMED:
+            return Response(
+                {'detail': 'Le check-in ne peut être effectué que sur une réservation confirmée'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        booking.status = Booking.IN_PROGRESS
+        booking.actual_check_in = timezone.now()
+        booking.save()
+        
+        return Response({'detail': 'Check-in effectué'})
+    
+    @action(detail=True, methods=['post'])
+    def check_out(self, request, pk=None):
+        """Effectuer le check-out d'une réservation"""
+        booking = self.get_object()
+        
+        if booking.status != Booking.IN_PROGRESS:
+            return Response(
+                {'detail': 'Le check-out ne peut être effectué que sur une réservation en cours'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        booking.status = Booking.COMPLETED
+        booking.actual_check_out = timezone.now()
+        booking.save()
+        
+        return Response({'detail': 'Check-out effectué'})
