@@ -18,6 +18,7 @@ class OwnerDashboardSerializer(serializers.Serializer):
 
 class OwnerEstablishmentSerializer(serializers.ModelSerializer):
     """Lecture et création/modification d'un établissement par l'hébergeur."""
+    primary_image = serializers.SerializerMethodField()
     room_count    = serializers.SerializerMethodField()
     booking_count = serializers.SerializerMethodField()
     total_revenue = serializers.SerializerMethodField()
@@ -29,7 +30,7 @@ class OwnerEstablishmentSerializer(serializers.ModelSerializer):
             'address', 'city', 'quarter', 'latitude', 'longitude',
             'check_in_time', 'check_out_time', 'cancellation_policy',
             'status', 'requires_manual_validation', 'is_featured',
-            'avg_rating', 'review_count', 'room_count', 'booking_count',
+            'avg_rating', 'review_count', 'primary_image', 'room_count', 'booking_count',
             'total_revenue', 'created_at',
         ]
         read_only_fields = [
@@ -37,17 +38,26 @@ class OwnerEstablishmentSerializer(serializers.ModelSerializer):
             'avg_rating', 'review_count', 'created_at',
         ]
 
+    def get_primary_image(self, obj):
+        from apps.establishments.serializers import EstablishmentImageSerializer
+        img = obj.images.filter(is_primary=True).first() or obj.images.first()
+        if img:
+            request = self.context.get('request')
+            return EstablishmentImageSerializer(img, context={'request': request}).data.get('url')
+        return None
+
     def get_room_count(self, obj):
-        return obj.room_types.count()
+        return obj.room_types.filter(is_active=True).count()
 
     def get_booking_count(self, obj):
-        return obj.bookings.count()
+        return Booking.objects.filter(room_type__establishment=obj).count()
 
     def get_total_revenue(self, obj):
         from django.db.models import Sum
-        return obj.bookings.filter(status=Booking.COMPLETED).aggregate(
-            total=Sum('host_payout')
-        )['total'] or 0
+        return Booking.objects.filter(
+            room_type__establishment=obj,
+            status__in=['paid', 'confirmed', 'in_progress', 'completed']
+        ).aggregate(total=Sum('host_payout'))['total'] or 0
 
 
 class OwnerRoomTypeSerializer(serializers.ModelSerializer):

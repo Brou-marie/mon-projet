@@ -10,7 +10,7 @@ class FeaturedListingSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Establishment
-        fields = ['id', 'name', 'slug', 'city', 'establishment_type', 'avg_rating', 
+        fields = ['id', 'name', 'slug', 'city', 'quarter', 'establishment_type', 'avg_rating',
                   'review_count', 'primary_image', 'lowest_price', 'is_featured']
     
     def get_primary_image(self, obj):
@@ -46,7 +46,7 @@ class ListingDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'city', 'quarter', 'establishment_type',
                   'description', 'address', 'latitude', 'longitude', 'avg_rating',
                   'review_count', 'check_in_time', 'check_out_time', 'cancellation_policy',
-                  'status', 'requires_manual_validation',
+                  'status', 'requires_manual_validation', 'is_featured',
                   'images', 'room_types', 'amenities', 'host_name', 'host_avatar']
     
     def get_images(self, obj):

@@ -77,14 +77,14 @@ class ClientBookingViewSet(viewsets.ModelViewSet):
         """Annuler une réservation"""
         booking = self.get_object()
         reason = request.data.get('reason', '')
-        
+
         if booking.status not in [Booking.PENDING_PAYMENT, Booking.PENDING_HOST_VALIDATION, Booking.CONFIRMED]:
             return Response(
                 {'detail': 'Cette réservation ne peut pas être annulée'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        booking.status = Booking.CANCELLED
+
+        booking.status = Booking.CANCELLED_REFUNDED
         booking.cancellation_reason = reason
         booking.cancelled_by = request.user
         booking.cancelled_at = timezone.now()

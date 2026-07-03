@@ -100,14 +100,17 @@ class RoomTypeCreateSerializer(serializers.ModelSerializer):
 class EstablishmentListSerializer(serializers.ModelSerializer):
     primary_image = serializers.SerializerMethodField()
     lowest_price = serializers.SerializerMethodField()
-    city_quarter = serializers.SerializerMethodField()
+    room_count = serializers.SerializerMethodField()
+    booking_count = serializers.SerializerMethodField()
+    total_revenue = serializers.SerializerMethodField()
 
     class Meta:
         model = Establishment
         fields = (
-            'id', 'name', 'slug', 'establishment_type', 'city_quarter', 'status',
+            'id', 'name', 'slug', 'establishment_type', 'city', 'quarter', 'status',
             'avg_rating', 'review_count', 'primary_image', 'lowest_price',
             'cancellation_policy', 'requires_manual_validation', 'is_featured',
+            'room_count', 'booking_count', 'total_revenue',
         )
 
     def get_primary_image(self, obj):
@@ -120,8 +123,21 @@ class EstablishmentListSerializer(serializers.ModelSerializer):
         prices = [rt.base_price_per_night for rt in obj.room_types.filter(is_active=True)]
         return min(prices) if prices else None
 
-    def get_city_quarter(self, obj):
-        return f"{obj.city}{f', {obj.quarter}' if obj.quarter else ''}"
+    def get_room_count(self, obj):
+        return obj.room_types.filter(is_active=True).count()
+
+    def get_booking_count(self, obj):
+        from apps.bookings.models import Booking
+        return Booking.objects.filter(room_type__establishment=obj).count()
+
+    def get_total_revenue(self, obj):
+        from apps.bookings.models import Booking
+        from django.db.models import Sum
+        revenue = Booking.objects.filter(
+            room_type__establishment=obj,
+            status__in=['paid', 'confirmed', 'in_progress', 'completed']
+        ).aggregate(total=Sum('total_amount'))['total']
+        return revenue if revenue else 0
 
 
 class EstablishmentDetailSerializer(serializers.ModelSerializer):

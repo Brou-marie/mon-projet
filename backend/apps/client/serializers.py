@@ -18,9 +18,10 @@ class ClientDashboardSerializer(serializers.Serializer):
     
     def get_upcoming_checkin(self, obj):
         from datetime import date, timedelta
+        from apps.bookings.models import Booking
         upcoming = Booking.objects.filter(
             guest=obj['user'],
-            status__in=['confirmed', 'checked_in'],
+            status__in=[Booking.CONFIRMED, Booking.IN_PROGRESS],
             check_in_date__gte=date.today(),
             check_in_date__lte=date.today() + timedelta(days=7)
         ).first()

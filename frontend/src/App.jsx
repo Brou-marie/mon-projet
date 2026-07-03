@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ProviderAuth } from './contextes/AuthContexte'
+import { ErrorBoundary } from './composants/ui/ErrorBoundary'
 import { DispositionPrincipale } from './composants/mise-en-page/DispositionPrincipale'
 import { DispositionTableauBord } from './composants/mise-en-page/DispositionTableauBord'
 import { RoutePubliqueSeul, RoutePubliqueVoyageur, RouteRole } from './composants/routage/RouteProtegee'
@@ -36,10 +37,11 @@ import { PageNonTrouvee } from './pages/PageNonTrouvee'
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <ProviderAuth>
-        <Suspense fallback={<PageChargement />}>
-          <Routes>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ProviderAuth>
+          <Suspense fallback={<PageChargement />}>
+            <Routes>
 
             {/* ── Pages publiques ── */}
             <Route element={<DispositionPrincipale />}>
@@ -81,6 +83,7 @@ export default function App() {
         </Suspense>
       </ProviderAuth>
     </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 

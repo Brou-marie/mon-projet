@@ -159,9 +159,12 @@ export function PageReservation() {
         guest_count_children: Number(form.guest_count_children),
         guest_notes: form.guest_notes,
       }
+      console.log('Tentative de réservation:', payload)
       const data = await api.post('/bookings/', payload)
+      console.log('Réponse réservation:', data)
       setReservationConfirmee(data)
     } catch (e) {
+      console.error('Erreur réservation:', e)
       // Extraire le détail de l'erreur Django
       const detail = e.details
       if (detail && typeof detail === 'object') {
@@ -192,9 +195,11 @@ export function PageReservation() {
   if (reservationConfirmee) {
     const [copied, setCopied] = useState(false)
     const copyCode = () => {
-      navigator.clipboard.writeText(reservationConfirmee.reservation_code)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (reservationConfirmee.reservation_code) {
+        navigator.clipboard.writeText(reservationConfirmee.reservation_code)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
     }
 
     return (
@@ -213,7 +218,7 @@ export function PageReservation() {
               <p className="text-sm text-gray-600 mb-2">Votre code de réservation</p>
               <div className="flex items-center justify-center gap-3">
                 <span className="text-4xl font-bold text-primary-600 tracking-wider">
-                  {reservationConfirmee.reservation_code}
+                  {reservationConfirmee.reservation_code || 'N/A'}
                 </span>
                 <button
                   onClick={copyCode}
@@ -233,23 +238,23 @@ export function PageReservation() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Hébergement</span>
-                  <span className="font-medium">{hebergement.name}</span>
+                  <span className="font-medium">{hebergement?.name || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Chambre</span>
-                  <span className="font-medium">{chambre?.name}</span>
+                  <span className="font-medium">{chambre?.name || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Arrivée</span>
-                  <span className="font-medium">{new Date(form.check_in_date).toLocaleDateString('fr-FR')}</span>
+                  <span className="font-medium">{form.check_in_date ? new Date(form.check_in_date).toLocaleDateString('fr-FR') : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Départ</span>
-                  <span className="font-medium">{new Date(form.check_out_date).toLocaleDateString('fr-FR')}</span>
+                  <span className="font-medium">{form.check_out_date ? new Date(form.check_out_date).toLocaleDateString('fr-FR') : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Total</span>
-                  <span className="font-bold text-primary-600">{formatPrix(reservationConfirmee.total_amount)}</span>
+                  <span className="font-bold text-primary-600">{reservationConfirmee.total_amount ? formatPrix(reservationConfirmee.total_amount) : 'N/A'}</span>
                 </div>
               </div>
             </div>

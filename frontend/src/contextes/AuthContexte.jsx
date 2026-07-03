@@ -29,6 +29,9 @@ export function ProviderAuth({ children }) {
       session.sauvegarder({ access: data.access, refresh: data.refresh, user: data.user })
       setUtilisateur(data.user)
       return data.user
+    } catch (error) {
+      console.error('Erreur inscription:', error)
+      throw error
     } finally {
       setChargement(false)
     }
