@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Calendar, Users, BedDouble, Shield, Check,
-  ChevronLeft, AlertCircle, Loader2, Star,
+  ChevronLeft, AlertCircle, Loader2, Star, Copy, CheckCircle,
 } from 'lucide-react'
 import { api } from '../../services/api'
 import { SectionChargement } from '../../composants/ui/Chargement'
@@ -80,6 +80,7 @@ export function PageReservation() {
   const [chargementEstim, setChargementEstim] = useState(false)
   const [enSoumission, setEnSoumission] = useState(false)
   const [erreur, setErreur] = useState(null)
+  const [reservationConfirmee, setReservationConfirmee] = useState(null)
 
   const today = new Date().toISOString().split('T')[0]
   const demain = new Date(Date.now() + 86400000).toISOString().split('T')[0]
@@ -159,9 +160,7 @@ export function PageReservation() {
         guest_notes: form.guest_notes,
       }
       const data = await api.post('/bookings/', payload)
-      navigate('/voyageur/reservations', {
-        state: { succes: `Réservation ${data.booking_number} créée ! En attente de paiement.` },
-      })
+      setReservationConfirmee(data)
     } catch (e) {
       // Extraire le détail de l'erreur Django
       const detail = e.details
@@ -185,6 +184,99 @@ export function PageReservation() {
       <div className="py-20 section text-center">
         <p className="text-gray-400">Hébergement introuvable.</p>
         <button onClick={() => navigate(-1)} className="btn-primary mt-4">Retour</button>
+      </div>
+    )
+  }
+
+  // Écran de confirmation avec code de réservation
+  if (reservationConfirmee) {
+    const [copied, setCopied] = useState(false)
+    const copyCode = () => {
+      navigator.clipboard.writeText(reservationConfirmee.reservation_code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="section py-8 max-w-2xl mx-auto">
+          <div className="card text-center py-12">
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-emerald-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Réservation confirmée !</h1>
+            <p className="text-gray-500 mb-8">
+              Votre réservation a été enregistrée avec succès.
+            </p>
+
+            <div className="bg-primary-50 rounded-2xl p-6 mb-8">
+              <p className="text-sm text-gray-600 mb-2">Votre code de réservation</p>
+              <div className="flex items-center justify-center gap-3">
+                <span className="text-4xl font-bold text-primary-600 tracking-wider">
+                  {reservationConfirmee.reservation_code}
+                </span>
+                <button
+                  onClick={copyCode}
+                  className="p-2 bg-white rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Copier le code"
+                >
+                  {copied ? <Check className="w-5 h-5 text-emerald-600" /> : <Copy className="w-5 h-5 text-gray-600" />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                Présentez ce code à l'hébergeur pour finaliser votre réservation.
+              </p>
+            </div>
+
+            <div className="text-left bg-gray-50 rounded-xl p-5 mb-8">
+              <h3 className="font-semibold text-gray-900 mb-3">Détails de la réservation</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Hébergement</span>
+                  <span className="font-medium">{hebergement.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Chambre</span>
+                  <span className="font-medium">{chambre?.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Arrivée</span>
+                  <span className="font-medium">{new Date(form.check_in_date).toLocaleDateString('fr-FR')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Départ</span>
+                  <span className="font-medium">{new Date(form.check_out_date).toLocaleDateString('fr-FR')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Total</span>
+                  <span className="font-bold text-primary-600">{formatPrix(reservationConfirmee.total_amount)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => navigate('/voyageur/reservations')}
+                className="btn-primary flex-1 justify-center"
+              >
+                Voir mes réservations
+              </button>
+              <button
+                onClick={() => {
+                  setReservationConfirmee(null)
+                  setForm({
+                    ...form,
+                    check_in_date: today,
+                    check_out_date: demain,
+                  })
+                }}
+                className="btn-secondary flex-1 justify-center"
+              >
+                Nouvelle réservation
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

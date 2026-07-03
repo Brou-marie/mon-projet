@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Star, MapPin, Clock, Users, BedDouble, Maximize2, ChevronLeft,
   ChevronRight, Heart, Share2, Wifi, Car, Waves, Wind, Coffee,
-  Utensils, Dumbbell, Sparkles, Shield, Check, ArrowLeft,
+  Utensils, Dumbbell, Sparkles, Shield, Check, ArrowLeft, ImageOff,
 } from 'lucide-react'
 import { api } from '../../services/api'
 import { BadgeStatut } from '../../composants/ui/Badge'
@@ -32,10 +32,11 @@ function Galerie({ images, nom, type }) {
   const [idx, setIdx] = useState(0)
   const [lightbox, setLightbox] = useState(false)
   const [aimee, setAimee] = useState(false)
+  const [imgErrors, setImgErrors] = useState({})
 
   // Construit la liste d'images (API + fallback Unsplash)
   const liste = images && images.length > 0
-    ? images.map((img) => img.url || img.image || null).filter(Boolean)
+    ? images.map((img) => img.url || null).filter(Boolean)
     : [
         getImageHebergement(type, 0),
         getImageHebergement(type, 1),
@@ -53,12 +54,18 @@ function Galerie({ images, nom, type }) {
           className="relative aspect-[16/9] md:aspect-[21/9] rounded-2xl overflow-hidden bg-gray-200 cursor-pointer"
           onClick={() => setLightbox(true)}
         >
-          <img
-            src={liste[idx]}
-            alt={nom}
-            className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
-            onError={(e) => { e.target.src = getImageHebergement(type, 1) }}
-          />
+          {imgErrors[idx] ? (
+            <div className="w-full h-full flex items-center justify-center bg-gray-200">
+              <ImageOff className="w-12 h-12 text-gray-400" />
+            </div>
+          ) : (
+            <img
+              src={liste[idx]}
+              alt={nom}
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
+              onError={() => setImgErrors(prev => ({ ...prev, [idx]: true }))}
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
           {/* Actions */}
@@ -137,18 +144,25 @@ function Galerie({ images, nom, type }) {
 // ── Carte chambre ─────────────────────────────────────────────────────────
 
 function CarteChambre({ chambre, onReserver }) {
-  const imgSrc = chambre.primary_image?.url || chambre.primary_image?.image || getImageChambre(chambre.name)
+  const [imgError, setImgError] = useState(false)
+  const imgSrc = !imgError && chambre.primary_image ? chambre.primary_image : getImageChambre(chambre.name)
   return (
     <div className="border border-gray-200 rounded-2xl overflow-hidden hover:border-primary-300 hover:shadow-md transition-all duration-200 bg-white">
       {/* Image chambre */}
       <div className="relative h-44 bg-gray-100 overflow-hidden">
-        <img
-          src={imgSrc}
-          alt={chambre.name}
-          className="w-full h-full object-cover"
-          onError={(e) => { e.target.src = getImageChambre('standard') }}
-          loading="lazy"
-        />
+        {imgError ? (
+          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+            <ImageOff className="w-8 h-8 text-gray-300" />
+          </div>
+        ) : (
+          <img
+            src={imgSrc}
+            alt={chambre.name}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
         <div className="absolute bottom-3 left-3 flex gap-2">
           {chambre.capacity_adults && (

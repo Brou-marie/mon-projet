@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Plus, Building2, Star, ExternalLink, Pencil } from 'lucide-react'
+import { Plus, Building2, Star, ExternalLink, Pencil, ImageOff } from 'lucide-react'
 import { api } from '../../services/api'
 import { BadgeStatut } from '../../composants/ui/Badge'
 import { SectionChargement } from '../../composants/ui/Chargement'
@@ -13,6 +13,7 @@ export function PageMesEtablissements() {
   const [chargement, setChargement] = useState(true)
   const [erreur, setErreur] = useState(null)
   const [message, setMessage] = useState(null)
+  const [imgErrors, setImgErrors] = useState({})
   const location = useLocation()
 
   const charger = () => {
@@ -69,12 +70,18 @@ export function PageMesEtablissements() {
             <div key={e.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
               {/* Image */}
               <div className="relative h-40 bg-gray-100 overflow-hidden">
-                <img
-                  src={getImageHebergement(e.establishment_type)}
-                  alt={e.name}
-                  className="w-full h-full object-cover"
-                  onError={ev => { ev.target.src = getImageHebergement('hotel') }}
-                />
+                {imgErrors[e.id] ? (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                    <ImageOff className="w-8 h-8 text-gray-300" />
+                  </div>
+                ) : (
+                  <img
+                    src={e.primary_image || getImageHebergement(e.establishment_type)}
+                    alt={e.name}
+                    className="w-full h-full object-cover"
+                    onError={() => setImgErrors(prev => ({ ...prev, [e.id]: true }))}
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                 <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
                   <p className="text-white font-semibold text-sm line-clamp-1">{e.name}</p>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, User, BedDouble, CheckCircle, XCircle, Clock, LogIn, LogOut } from 'lucide-react'
+import { Calendar, User, BedDouble, CheckCircle, XCircle, Clock, LogIn, LogOut, Search, AlertCircle } from 'lucide-react'
 import { api } from '../../services/api'
 import { BadgeStatut } from '../../composants/ui/Badge'
 import { SectionChargement } from '../../composants/ui/Chargement'
@@ -11,6 +11,9 @@ export function PageReservationsHebergeur() {
   const [chargement, setChargement] = useState(true)
   const [erreur, setErreur] = useState(null)
   const [message, setMessage] = useState(null)
+  const [searchCode, setSearchCode] = useState('')
+  const [searchResult, setSearchResult] = useState(null)
+  const [searchLoading, setSearchLoading] = useState(false)
 
   const charger = () => {
     setChargement(true)
@@ -39,6 +42,23 @@ export function PageReservationsHebergeur() {
     }
   }
 
+  const handleSearchByCode = async (e) => {
+    e.preventDefault()
+    if (!searchCode.trim()) return
+
+    setSearchLoading(true)
+    setSearchResult(null)
+    try {
+      const result = await api.get(`/bookings/by-code/${searchCode.trim().toUpperCase()}/`)
+      setSearchResult(result)
+      setMessage({ type: 'succes', texte: 'Réservation trouvée !' })
+    } catch (e) {
+      setMessage({ type: 'erreur', texte: 'Aucune réservation trouvée avec ce code.' })
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
   if (chargement) return <SectionChargement />
   if (erreur) return <ErreurPage message={erreur} onReessayer={charger} />
 
@@ -50,6 +70,77 @@ export function PageReservationsHebergeur() {
       <h1 className="text-2xl font-bold text-gray-900">Réservations reçues</h1>
 
       {message && <Alerte type={message.type} message={message.texte} onFermer={() => setMessage(null)} />}
+
+      {/* Recherche par code de réservation */}
+      <div className="card">
+        <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <Search className="w-5 h-5 text-primary-600" />
+          Rechercher par code de réservation
+        </h2>
+        <form onSubmit={handleSearchByCode} className="flex gap-3">
+          <input
+            type="text"
+            value={searchCode}
+            onChange={(e) => setSearchCode(e.target.value.toUpperCase())}
+            placeholder="Entrez le code (ex: ABC123)"
+            className="input flex-1 font-mono uppercase"
+            maxLength={6}
+          />
+          <button
+            type="submit"
+            disabled={searchLoading || !searchCode.trim()}
+            className="btn-primary gap-2"
+          >
+            {searchLoading ? <Clock className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            Rechercher
+          </button>
+        </form>
+      </div>
+
+      {/* Résultat de recherche */}
+      {searchResult && (
+        <div className="card border-2 border-primary-200 bg-primary-50/30">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle className="w-5 h-5 text-emerald-600" />
+            <h3 className="font-bold text-gray-900">Réservation trouvée</h3>
+          </div>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-lg bg-white px-3 py-1 rounded-lg border border-gray-200 font-bold">
+                {searchResult.reservation_code}
+              </span>
+              <BadgeStatut statut={searchResult.status} />
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500">Client</p>
+                <p className="font-semibold">{searchResult.guest_name}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Téléphone</p>
+                <p className="font-semibold">{searchResult.guest_phone}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Chambre</p>
+                <p className="font-semibold">{searchResult.room_type_name}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Dates</p>
+                <p className="font-semibold">{formatPlageDates(searchResult.check_in_date, searchResult.check_out_date)}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+              <p className="text-xl font-bold text-primary-600">{formatPrix(searchResult.total_amount)}</p>
+              <button
+                onClick={() => setSearchResult(null)}
+                className="btn-secondary text-sm"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* En attente de validation */}
       {enAttente.length > 0 && (

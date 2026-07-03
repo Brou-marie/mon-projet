@@ -6,11 +6,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter, SearchFilter
-from .models import Amenity, Establishment, EstablishmentImage, RoomType, RoomAvailability
+from .models import Amenity, Establishment, EstablishmentImage, RoomType, RoomAvailability, RoomTypeImage
 from .serializers import (
     AmenitySerializer, EstablishmentListSerializer, EstablishmentDetailSerializer,
     EstablishmentCreateUpdateSerializer, RoomTypeDetailSerializer, RoomTypeCreateSerializer,
-    RoomAvailabilitySerializer, EstablishmentImageSerializer,
+    RoomAvailabilitySerializer, EstablishmentImageSerializer, RoomTypeImageSerializer,
 )
 
 
@@ -238,6 +238,47 @@ class EstablishmentImageDeleteView(generics.DestroyAPIView):
         return get_object_or_404(self.get_queryset(), pk=self.kwargs['pk'])
 
 
+class EstablishmentImageUpdateView(generics.UpdateAPIView):
+    """Modifie une image d'un établissement (caption, is_primary, display_order)."""
+    serializer_class = EstablishmentImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
+
+    def get_queryset(self):
+        return EstablishmentImage.objects.filter(establishment__host=self.request.user)
+
+    def get_object(self):
+        return get_object_or_404(self.get_queryset(), pk=self.kwargs['pk'])
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        # Gestion is_primary
+        if 'is_primary' in request.data and request.data['is_primary']:
+            EstablishmentImage.objects.filter(
+                establishment=instance.establishment, is_primary=True
+            ).exclude(pk=instance.pk).update(is_primary=False)
+        
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response(serializer.data)
+
+
+class EstablishmentImageListView(generics.ListAPIView):
+    """Liste toutes les images d'un établissement."""
+    serializer_class = EstablishmentImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        slug = self.kwargs['slug']
+        return EstablishmentImage.objects.filter(
+            establishment__slug=slug, establishment__host=self.request.user
+        ).order_by('display_order', 'created_at')
+
+
 class RoomTypeCreateView(generics.CreateAPIView):
     """Crée un type de chambre pour un établissement du host connecté."""
     serializer_class = RoomTypeCreateSerializer
@@ -284,3 +325,86 @@ class RoomTypeCreateView(generics.CreateAPIView):
 
         return Response(RoomTypeDetailSerializer(room_type, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
+
+
+class RoomTypeImageUploadView(generics.CreateAPIView):
+    """Upload une ou plusieurs images pour un type de chambre."""
+    serializer_class = RoomTypeImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+
+    def create(self, request, pk=None):
+        try:
+            room_type = RoomType.objects.get(pk=pk, establishment__host=request.user)
+        except RoomType.DoesNotExist:
+            return Response({"detail": "Type de chambre non trouvé."}, status=status.HTTP_404_NOT_FOUND)
+
+        images = request.FILES.getlist('images')
+        if not images:
+            return Response({"detail": "Aucune image fournie."}, status=status.HTTP_400_BAD_REQUEST)
+
+        created = []
+        for i, img_file in enumerate(images):
+            is_primary = (i == 0 and not room_type.images.filter(is_primary=True).exists())
+            obj = RoomTypeImage.objects.create(
+                room_type=room_type,
+                image=img_file,
+                caption=request.data.get('caption', ''),
+                is_primary=is_primary,
+                display_order=room_type.images.count(),
+            )
+            created.append(RoomTypeImageSerializer(obj, context={'request': request}).data)
+
+        return Response(created, status=status.HTTP_201_CREATED)
+
+
+class RoomTypeImageUpdateView(generics.UpdateAPIView):
+    """Modifie une image d'un type de chambre (caption, is_primary, display_order)."""
+    serializer_class = RoomTypeImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
+
+    def get_queryset(self):
+        return RoomTypeImage.objects.filter(room_type__establishment__host=self.request.user)
+
+    def get_object(self):
+        return get_object_or_404(self.get_queryset(), pk=self.kwargs['image_pk'])
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        # Gestion is_primary
+        if 'is_primary' in request.data and request.data['is_primary']:
+            RoomTypeImage.objects.filter(
+                room_type=instance.room_type, is_primary=True
+            ).exclude(pk=instance.pk).update(is_primary=False)
+        
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response(serializer.data)
+
+
+class RoomTypeImageDeleteView(generics.DestroyAPIView):
+    """Supprime une image d'un type de chambre."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return RoomTypeImage.objects.filter(room_type__establishment__host=self.request.user)
+
+    def get_object(self):
+        return get_object_or_404(self.get_queryset(), pk=self.kwargs['image_pk'])
+
+
+class RoomTypeImageListView(generics.ListAPIView):
+    """Liste toutes les images d'un type de chambre."""
+    serializer_class = RoomTypeImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        pk = self.kwargs['pk']
+        return RoomTypeImage.objects.filter(
+            room_type__pk=pk, room_type__establishment__host=self.request.user
+        ).order_by('display_order', 'created_at')

@@ -5,6 +5,7 @@
  * - RoutePubliqueSeul  : connexion/inscription → redirige si déjà connecté
  * - RoutePrivee        : redirige vers /connexion si non connecté
  * - RouteRole          : vérifie le rôle, redirige sinon
+ * - RoutePubliqueVoyageur : pages publiques accessibles aux voyageurs non connectés
  */
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contextes/AuthContexte'
@@ -25,6 +26,28 @@ export function RoutePubliqueSeul({ children }) {
 
   // Voyageur ou hébergeur → leur espace
   return <Navigate to={accueilRole()} replace />
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pages publiques accessibles aux voyageurs (non connectés ou connectés en tant que guest)
+// Les hébergeurs sont redirigés vers leur tableau de bord
+// ─────────────────────────────────────────────────────────────────────────────
+export function RoutePubliqueVoyageur({ children }) {
+  const { estConnecte, estHebergeur, estAdmin, accueilRole } = useAuth()
+
+  // Admin → Django Unfold
+  if (estAdmin) {
+    window.location.replace('http://localhost:8000/admin/')
+    return null
+  }
+
+  // Hébergeur → leur tableau de bord (pas accès aux pages publiques)
+  if (estHebergeur) {
+    return <Navigate to="/hebergeur/tableau-de-bord" replace />
+  }
+
+  // Non connecté ou voyageur → accès autorisé
+  return children
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
