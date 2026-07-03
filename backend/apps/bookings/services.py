@@ -17,19 +17,8 @@ def booking_nights(check_in, check_out):
 
 
 def commission_percent_for(establishment):
-    host_profile = getattr(establishment.host, 'host_profile', None)
-    if host_profile and host_profile.commission_override_percent is not None:
-        return Decimal(str(host_profile.commission_override_percent))
-
-    host_setting = CommissionSetting.objects.filter(
-        host=establishment.host,
-        is_active=True,
-        effective_from__lte=date.today(),
-    ).order_by('-effective_from').first()
-    if host_setting:
-        return Decimal(str(host_setting.commission_percent))
-
-    return Decimal(str(getattr(settings, 'DEFAULT_PLATFORM_COMMISSION_PERCENT', 15)))
+    # Frais de plateforme fixés à 10% pour toutes les réservations
+    return Decimal('10')
 
 
 def quote_room_type(room_type, check_in, check_out, lock=False):

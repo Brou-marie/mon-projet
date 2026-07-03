@@ -81,6 +81,7 @@ export function PageReservation() {
   const [enSoumission, setEnSoumission] = useState(false)
   const [erreur, setErreur] = useState(null)
   const [reservationConfirmee, setReservationConfirmee] = useState(null)
+  const [copied, setCopied] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
   const demain = new Date(Date.now() + 86400000).toISOString().split('T')[0]
@@ -193,7 +194,6 @@ export function PageReservation() {
 
   // Écran de confirmation avec code de réservation
   if (reservationConfirmee) {
-    const [copied, setCopied] = useState(false)
     const copyCode = () => {
       if (reservationConfirmee.reservation_code) {
         navigator.clipboard.writeText(reservationConfirmee.reservation_code)
