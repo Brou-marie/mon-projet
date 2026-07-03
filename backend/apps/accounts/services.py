@@ -36,18 +36,21 @@ class LoyaltyTier:
 
 def calculate_points_for_booking(booking):
     """Calcule les points de fidélité pour une réservation"""
+    # Utiliser le montant de base (sans frais d'arrivée tardive)
+    base_amount = booking.base_subtotal if hasattr(booking, 'base_subtotal') and booking.base_subtotal > 0 else booking.total_amount
+
     # 1 point par 100 XOF dépensés
-    points = int(booking.total_amount / 100)
-    
+    points = int(base_amount / 100)
+
     # Bonus pour les réservations longues (plus de 7 nuits)
     nights = (booking.check_out_date - booking.check_in_date).days
     if nights >= 7:
         points += int(points * 0.1)  # 10% de bonus
-    
+
     # Bonus pour les réservations de haute valeur (plus de 100000 XOF)
-    if booking.total_amount >= 100000:
+    if base_amount >= 100000:
         points += int(points * 0.15)  # 15% de bonus
-    
+
     return points
 
 
@@ -58,18 +61,27 @@ def add_loyalty_points(user, points, reason='', booking=None):
     """
     if user.role != 'guest':
         return None
-    
+
     profile, _ = GuestProfile.objects.get_or_create(user=user)
-    
+
     # Ajouter les points
     profile.loyalty_points += points
     profile.save(update_fields=['loyalty_points', 'updated_at'])
-    
-    # Enregistrer l'historique des points (optionnel - à implémenter avec un modèle séparé)
-    
+
+    # Enregistrer l'historique des points
+    from .models import LoyaltyPointsHistory
+    LoyaltyPointsHistory.objects.create(
+        user=user,
+        transaction_type='earned',
+        points=points,
+        balance_after=profile.loyalty_points,
+        reason=reason,
+        booking_number=booking.booking_number if booking else None
+    )
+
     # Vérifier si l'utilisateur a changé de niveau
     current_tier = LoyaltyTier.get_tier(profile.loyalty_points)
-    
+
     return {
         'points_added': points,
         'total_points': profile.loyalty_points,
@@ -86,9 +98,9 @@ def redeem_loyalty_points(user, points, reason=''):
     """
     if user.role != 'guest':
         return None
-    
+
     profile = GuestProfile.objects.get(user=user)
-    
+
     if profile.loyalty_points < points:
         return {
             'success': False,
@@ -96,14 +108,24 @@ def redeem_loyalty_points(user, points, reason=''):
             'available_points': profile.loyalty_points,
             'requested_points': points,
         }
-    
+
     # Déduire les points
     profile.loyalty_points -= points
     profile.save(update_fields=['loyalty_points', 'updated_at'])
-    
+
+    # Enregistrer l'historique des points
+    from .models import LoyaltyPointsHistory
+    LoyaltyPointsHistory.objects.create(
+        user=user,
+        transaction_type='redeemed',
+        points=-points,
+        balance_after=profile.loyalty_points,
+        reason=reason
+    )
+
     # Vérifier le nouveau niveau
     current_tier = LoyaltyTier.get_tier(profile.loyalty_points)
-    
+
     return {
         'success': True,
         'points_redeemed': points,

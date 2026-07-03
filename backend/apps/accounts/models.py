@@ -103,6 +103,34 @@ class GuestProfile(models.Model):
         return f"Profil Voyageur: {self.user.email}"
 
 
+class LoyaltyPointsHistory(models.Model):
+    """Historique des transactions de points de fidélité"""
+    TRANSACTION_TYPES = [
+        ('earned', 'Gagnés'),
+        ('redeemed', 'Échangés'),
+        ('expired', 'Expirés'),
+        ('adjusted', 'Ajustés'),
+    ]
+
+    user = models.ForeignKey(
+        'accounts.User', on_delete=models.CASCADE,
+        related_name='loyalty_history'
+    )
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
+    points = models.IntegerField()
+    balance_after = models.PositiveIntegerField()
+    reason = models.CharField(max_length=255, blank=True)
+    booking_number = models.CharField(max_length=50, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'loyalty_points_history'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email} - {self.transaction_type} - {self.points} points"
+
+
 class HostProfile(models.Model):
     VERIFICATION_STATUS = [
         ('pending', 'En attente'),

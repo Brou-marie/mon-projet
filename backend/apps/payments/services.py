@@ -155,18 +155,18 @@ def create_payout_for_host(host, period_start, period_end):
     
     if not bookings.exists():
         return None
-    
+
     # Calculer les totaux
-    total_amount = sum(b.total_amount for b in bookings)
-    total_commission = sum(b.platform_fee for b in bookings)
-    net_amount = sum(b.host_payout for b in bookings)
-    
+    total_amount = sum(b.total_amount.quantize(Decimal('0.01')) for b in bookings)
+    total_commission = sum(b.platform_fee.quantize(Decimal('0.01')) for b in bookings)
+    net_amount = sum(b.host_payout.quantize(Decimal('0.01')) for b in bookings)
+
     # Créer le versement
     payout = Payout.objects.create(
         host=host,
-        amount=total_amount,
-        commission_deducted=total_commission,
-        net_amount=net_amount,
+        amount=total_amount.quantize(Decimal('0.01')),
+        commission_deducted=total_commission.quantize(Decimal('0.01')),
+        net_amount=net_amount.quantize(Decimal('0.01')),
         period_start=period_start,
         period_end=period_end,
         status='pending'

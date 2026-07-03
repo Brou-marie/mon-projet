@@ -45,7 +45,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         booking = serializer.validated_data['booking']
-        payment = serializer.save(status='pending', amount=booking.total_amount)
+        payment = serializer.save(status='pending', amount=booking.total_amount.quantize(Decimal('0.01')))
 
         # Confirmation automatique du paiement pour le développement
         return confirm_payment(payment, changed_by=self.request.user)
@@ -70,7 +70,7 @@ class PaymentInitView(APIView):
         serializer = PaymentCreateSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         booking = serializer.validated_data['booking']
-        payment = serializer.save(status='pending', amount=booking.total_amount)
+        payment = serializer.save(status='pending', amount=booking.total_amount.quantize(Decimal('0.01')))
         data = PaymentSerializer(payment, context={'request': request}).data
         data['payment_url'] = f'/paiement/simule/{payment.id}'
         data['message'] = 'Intention de paiement créée.'

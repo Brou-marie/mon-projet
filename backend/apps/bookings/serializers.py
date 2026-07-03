@@ -49,7 +49,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         exclude = ('qr_code',)
-        read_only_fields = ('booking_number', 'reservation_code', 'total_nights', 'subtotal', 'platform_fee',
+        read_only_fields = ('booking_number', 'reservation_code', 'total_nights', 'base_subtotal', 'subtotal', 'loyalty_discount', 'platform_fee',
                             'tax_amount', 'total_amount', 'commission_amount', 'host_payout',
                             'created_at', 'updated_at', 'cancelled_at', 'refund_amount')
 
@@ -106,6 +106,12 @@ class BookingCreateSerializer(serializers.ModelSerializer):
                 {"dates": f"Le type de chambre n'est pas disponible pour ces dates: {unavailable}."}
             )
 
+        # Validation stricte des montants
+        if quote['total_amount'] <= 0:
+            raise serializers.ValidationError({"amount": "Le montant total doit être positif."})
+        if quote['total_amount'] > Decimal('999999999.99'):
+            raise serializers.ValidationError({"amount": "Le montant total dépasse la limite autorisée."})
+
         return data
 
     @transaction.atomic
@@ -127,6 +133,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             establishment=establishment,
             status=Booking.PENDING_PAYMENT,
             subtotal=quote['subtotal'],
+            base_subtotal=quote.get('base_subtotal', quote['subtotal']),
             loyalty_discount=quote.get('loyalty_discount', Decimal('0.00')),
             platform_fee=quote['platform_fee'],
             tax_amount=quote['tax_amount'],
@@ -188,6 +195,7 @@ class BookingPriceEstimateSerializer(serializers.Serializer):
             'unavailable_dates': [day.isoformat() for day in quote['unavailable_dates']],
             'total_nights': quote['total_nights'],
             'price_breakdown': quote['price_breakdown'],
+            'base_subtotal': quote.get('base_subtotal', quote['subtotal']),
             'subtotal': quote['subtotal'],
             'loyalty_discount': quote.get('loyalty_discount', Decimal('0.00')),
             'platform_fee': quote['platform_fee'],

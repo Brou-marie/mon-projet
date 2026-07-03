@@ -5,6 +5,7 @@ from django.utils import timezone
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from .models import Booking
 from .serializers import (
     BookingListSerializer, BookingDetailSerializer, BookingCreateSerializer,
@@ -14,10 +15,16 @@ from .services import record_status, restore_availability, set_booking_status
 from apps.notifications.services import notify_user
 
 
+class BookingCreateRateThrottle(UserRateThrottle):
+    """Limite le taux de création de réservations à 3 par heure"""
+    rate = '3/hour'
+
+
 class BookingViewSet(viewsets.ModelViewSet):
     serializer_class = BookingDetailSerializer
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = 'booking_number'
+    throttle_classes = [BookingCreateRateThrottle]
 
     def get_queryset(self):
         user = self.request.user
@@ -137,15 +144,14 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking.actual_check_in = timezone.now()
 
         # Calcul des frais d'arrivée tardive (après 18h)
-        expected_check_in = booking.check_in_date
         actual_time = booking.actual_check_in.time()
         late_hour = 18
 
         if actual_time.hour >= late_hour:
-            # Frais de 10% du montant total pour arrivée tardive
-            late_fee = booking.total_amount * Decimal('0.10')
-            booking.late_arrival_fee = late_fee
-            booking.total_amount += late_fee
+            # Frais de 10% du montant de base pour arrivée tardive
+            late_fee = booking.base_subtotal * Decimal('0.10')
+            booking.late_arrival_fee = late_fee.quantize(Decimal('0.01'))
+            booking.total_amount += late_fee.quantize(Decimal('0.01'))
 
         booking.save(update_fields=('actual_check_in', 'late_arrival_fee', 'total_amount', 'updated_at'))
         set_booking_status(booking, Booking.IN_PROGRESS, changed_by=request.user, note='Check-in effectué.')
@@ -209,6 +215,12 @@ class BookingViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_403_FORBIDDEN)
 
         booking = self.get_object()
+
+        # Vérifier que l'hébergeur est bien le propriétaire de l'établissement
+        if booking.establishment.host != request.user:
+            return Response({"detail": "Vous n'êtes pas autorisé à valider cette réservation."},
+                            status=status.HTTP_403_FORBIDDEN)
+
         payment_method = request.data.get('payment_method')
 
         if not payment_method:
@@ -225,6 +237,7 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         booking.payment_method = payment_method
         booking.payment_status = 'paid'
+        booking.payment_proof = request.data.get('payment_proof', '')
         booking.status = Booking.CONFIRMED
         booking.save()
 
@@ -241,24 +254,141 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         return Response(BookingDetailSerializer(booking, context={'request': request}).data)
 
+    @action(detail=True, methods=['post'])
+    def modify_dates(self, request, booking_number=None):
+        """Permet de modifier les dates d'une réservation"""
+        booking = self.get_object()
+        user = request.user
+
+        # Seul le client peut modifier sa réservation
+        if booking.guest != user:
+            return Response({"detail": "Seul le voyageur peut modifier sa réservation."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        # Vérifier que la réservation peut être modifiée
+        modifiable_statuses = (Booking.PENDING_PAYMENT, Booking.PENDING_HOST_VALIDATION, Booking.CONFIRMED)
+        if booking.status not in modifiable_statuses:
+            return Response({"detail": "Cette réservation ne peut plus être modifiée."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        new_check_in = request.data.get('check_in_date')
+        new_check_out = request.data.get('check_out_date')
+        reason = request.data.get('reason', '')
+
+        if not new_check_in or not new_check_out:
+            return Response({"detail": "Les nouvelles dates sont requises."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_check_in = date.fromisoformat(new_check_in)
+            new_check_out = date.fromisoformat(new_check_out)
+        except ValueError:
+            return Response({"detail": "Format de date invalide."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if new_check_in >= new_check_out:
+            return Response({"detail": "La date de départ doit être après la date d'arrivée."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if new_check_in < date.today():
+            return Response({"detail": "La date d'arrivée ne peut pas être dans le passé."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Vérifier la disponibilité pour les nouvelles dates
+        from .services import booking_nights, quote_room_type, decrement_availability, restore_availability
+        from .models import BookingStatusHistory
+
+        old_check_in = booking.check_in_date
+        old_check_out = booking.check_out_date
+
+        # Libérer l'ancienne disponibilité
+        restore_availability(booking)
+
+        # Vérifier la nouvelle disponibilité
+        new_nights = booking_nights(new_check_in, new_check_out)
+        quote = quote_room_type(booking.room_type, new_check_in, new_check_out, lock=True)
+
+        if not quote['available']:
+            # Restaurer l'ancienne disponibilité
+            restore_availability(booking)
+            unavailable = ', '.join(d.strftime('%d/%m/%Y') for d in quote['unavailable_dates'])
+            return Response({"detail": f"Dates non disponibles: {unavailable}"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not decrement_availability(booking.room_type, new_nights):
+            # Restaurer l'ancienne disponibilité
+            restore_availability(booking)
+            return Response({"detail": "Impossible de réserver ces dates."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            # Enregistrer les modifications dans l'historique
+            from .models import BookingModificationHistory
+            BookingModificationHistory.objects.create(
+                booking=booking,
+                modification_type='dates',
+                field_name='check_in_date',
+                old_value=str(old_check_in),
+                new_value=str(new_check_in),
+                changed_by=user,
+                reason=reason
+            )
+            BookingModificationHistory.objects.create(
+                booking=booking,
+                modification_type='dates',
+                field_name='check_out_date',
+                old_value=str(old_check_out),
+                new_value=str(new_check_out),
+                changed_by=user,
+                reason=reason
+            )
+
+            # Mettre à jour la réservation
+            booking.check_in_date = new_check_in
+            booking.check_out_date = new_check_out
+            booking.total_nights = len(new_nights)
+            booking.subtotal = quote['subtotal']
+            booking.base_subtotal = quote.get('base_subtotal', quote['subtotal'])
+            booking.loyalty_discount = quote.get('loyalty_discount', Decimal('0.00'))
+            booking.platform_fee = quote['platform_fee']
+            booking.tax_amount = quote['tax_amount']
+            booking.total_amount = quote['total_amount']
+            booking.commission_amount = quote['commission_amount']
+            booking.host_payout = quote['host_payout']
+            booking.price_breakdown = quote['price_breakdown']
+            booking.save()
+
+            record_status(booking, booking.status, changed_by=user,
+                         note=f"Dates modifiées: {old_check_in}/{old_check_out} -> {new_check_in}/{new_check_out}")
+
+        notify_user(
+            booking.guest,
+            'booking_modified',
+            'Réservation modifiée',
+            f'Les dates de votre réservation {booking.booking_number} ont été modifiées.',
+            {'booking_number': booking.booking_number}
+        )
+
+        return Response(BookingDetailSerializer(booking, context={'request': request}).data)
+
     def _calculate_refund(self, booking):
         policy = booking.establishment.cancellation_policy
         days_before = (booking.check_in_date - timezone.now().date()).days
 
         if policy == 'flexible':
             if days_before >= 1:
-                return booking.total_amount
+                return booking.total_amount.quantize(Decimal('0.01'))
             return Decimal('0.00')
         elif policy == 'moderate':
             if days_before >= 5:
-                return booking.total_amount
+                return booking.total_amount.quantize(Decimal('0.01'))
             elif days_before >= 1:
-                return booking.total_amount * Decimal('0.50')
+                return (booking.total_amount * Decimal('0.50')).quantize(Decimal('0.01'))
             return Decimal('0.00')
         else:  # strict
             if days_before >= 14:
-                return booking.total_amount
+                return booking.total_amount.quantize(Decimal('0.01'))
             elif days_before >= 7:
-                return booking.total_amount * Decimal('0.50')
+                return (booking.total_amount * Decimal('0.50')).quantize(Decimal('0.01'))
             return Decimal('0.00')
 

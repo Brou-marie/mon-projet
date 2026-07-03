@@ -75,6 +75,7 @@ class Booking(models.Model):
     price_breakdown = models.JSONField(default=dict, blank=True)
 
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    base_subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     loyalty_discount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     platform_fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
@@ -99,6 +100,7 @@ class Booking(models.Model):
 
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, blank=True, null=True)
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    payment_proof = models.TextField(blank=True, help_text="Preuve de paiement (numéro de transaction, reçu, etc.)")
     late_arrival_fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     qr_code = models.CharField(max_length=100, blank=True, db_index=True)
@@ -177,3 +179,33 @@ class BookingStatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.booking.booking_number} -> {self.status}"
+
+
+class BookingModificationHistory(models.Model):
+    """Historique des modifications de réservation"""
+    MODIFICATION_TYPES = [
+        ('dates', 'Modification des dates'),
+        ('guests', 'Modification des invités'),
+        ('notes', 'Modification des notes'),
+        ('payment', 'Modification du paiement'),
+        ('other', 'Autre modification'),
+    ]
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='modification_history')
+    modification_type = models.CharField(max_length=20, choices=MODIFICATION_TYPES)
+    field_name = models.CharField(max_length=100)
+    old_value = models.TextField(blank=True)
+    new_value = models.TextField(blank=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        related_name='booking_modifications', blank=True, null=True
+    )
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'booking_modification_history'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.booking.booking_number} - {self.modification_type} - {self.field_name}"

@@ -29,7 +29,7 @@ def quote_room_type(room_type, check_in, check_out, lock=False, user=None):
 
     availability_by_date = {availability.date: availability for availability in queryset}
     unavailable_dates = []
-    subtotal = Decimal('0.00')
+    base_subtotal = Decimal('0.00')
     price_breakdown = {}
 
     for night in nights:
@@ -40,26 +40,29 @@ def quote_room_type(room_type, check_in, check_out, lock=False, user=None):
 
         nightly_price = availability.special_price or room_type.base_price_per_night
         nightly_price = Decimal(str(nightly_price))
-        subtotal += nightly_price
+        base_subtotal += nightly_price
         price_breakdown[str(night)] = str(nightly_price)
 
     # Appliquer la réduction de fidélité si applicable
     loyalty_discount = Decimal('0.00')
     if user:
         from apps.accounts.services import get_loyalty_discount
-        loyalty_discount = get_loyalty_discount(user, subtotal)
-        subtotal -= loyalty_discount
+        loyalty_discount = get_loyalty_discount(user, base_subtotal).quantize(Decimal('0.01'))
+
+    # Calculer le subtotal après réduction
+    subtotal = (base_subtotal - loyalty_discount).quantize(Decimal('0.01'))
 
     commission_percent = commission_percent_for(room_type.establishment)
     platform_fee = (subtotal * commission_percent / Decimal('100')).quantize(Decimal('0.01'))
     tax_amount = Decimal('0.00')
-    total_amount = subtotal + platform_fee + tax_amount
+    total_amount = (subtotal + platform_fee + tax_amount).quantize(Decimal('0.01'))
 
     return {
         'available': not unavailable_dates,
         'unavailable_dates': unavailable_dates,
         'total_nights': len(nights),
         'price_breakdown': price_breakdown,
+        'base_subtotal': base_subtotal,
         'subtotal': subtotal,
         'loyalty_discount': loyalty_discount,
         'platform_fee': platform_fee,

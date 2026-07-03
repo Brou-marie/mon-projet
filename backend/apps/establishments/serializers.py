@@ -133,11 +133,12 @@ class EstablishmentListSerializer(serializers.ModelSerializer):
     def get_total_revenue(self, obj):
         from apps.bookings.models import Booking
         from django.db.models import Sum
+        from decimal import Decimal
         revenue = Booking.objects.filter(
             room_type__establishment=obj,
             status__in=['paid', 'confirmed', 'in_progress', 'completed']
         ).aggregate(total=Sum('total_amount'))['total']
-        return revenue if revenue else 0
+        return revenue.quantize(Decimal('0.01')) if revenue else Decimal('0.00')
 
 
 class EstablishmentDetailSerializer(serializers.ModelSerializer):
