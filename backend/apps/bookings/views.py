@@ -156,6 +156,23 @@ class BookingViewSet(viewsets.ModelViewSet):
         )
         return Response(BookingDetailSerializer(booking, context={'request': request}).data)
 
+    @action(detail=False, methods=['get'], url_path='by-code/(?P<code>[A-Z0-9]+)')
+    def by_code(self, request, code=None):
+        """Permet à l'hébergeur de rechercher une réservation par le code de réservation du client."""
+        if not request.user.is_host:
+            return Response({"detail": "Accès réservé aux hébergeurs."},
+                            status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            booking = Booking.objects.get(
+                reservation_code=code.upper(),
+                establishment__host=request.user
+            )
+            return Response(BookingDetailSerializer(booking, context={'request': request}).data)
+        except Booking.DoesNotExist:
+            return Response({"detail": "Aucune réservation trouvée avec ce code."},
+                            status=status.HTTP_404_NOT_FOUND)
+
     def _calculate_refund(self, booking):
         policy = booking.establishment.cancellation_policy
         days_before = (booking.check_in_date - timezone.now().date()).days

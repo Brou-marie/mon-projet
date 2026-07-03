@@ -9,13 +9,13 @@ class AmenitySerializer(serializers.ModelSerializer):
 
 
 class EstablishmentImageSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
+    url = serializers.SerializerMethodField()
 
     class Meta:
         model = EstablishmentImage
-        fields = ('id', 'image', 'image_url', 'caption', 'is_primary', 'display_order')
+        fields = ('id', 'image', 'url', 'caption', 'is_primary', 'display_order')
 
-    def get_image_url(self, obj):
+    def get_url(self, obj):
         request = self.context.get('request')
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
@@ -25,13 +25,13 @@ class EstablishmentImageSerializer(serializers.ModelSerializer):
 
 
 class RoomTypeImageSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
+    url = serializers.SerializerMethodField()
 
     class Meta:
         model = RoomTypeImage
-        fields = ('id', 'image', 'image_url', 'caption', 'is_primary', 'display_order')
+        fields = ('id', 'image', 'url', 'caption', 'is_primary', 'display_order')
 
-    def get_image_url(self, obj):
+    def get_url(self, obj):
         request = self.context.get('request')
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
@@ -61,7 +61,7 @@ class RoomTypeListSerializer(serializers.ModelSerializer):
     def get_primary_image(self, obj):
         img = obj.images.filter(is_primary=True).first() or obj.images.first()
         if img:
-            return RoomTypeImageSerializer(img, context=self.context).data
+            return RoomTypeImageSerializer(img, context=self.context).data.get('url')
         return None
 
 
@@ -113,7 +113,7 @@ class EstablishmentListSerializer(serializers.ModelSerializer):
     def get_primary_image(self, obj):
         img = obj.images.filter(is_primary=True).first() or obj.images.first()
         if img:
-            return EstablishmentImageSerializer(img, context=self.context).data
+            return EstablishmentImageSerializer(img, context=self.context).data.get('url')
         return None
 
     def get_lowest_price(self, obj):

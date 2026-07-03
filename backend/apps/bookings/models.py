@@ -37,6 +37,7 @@ class Booking(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     booking_number = models.CharField(max_length=20, unique=True, db_index=True)
+    reservation_code = models.CharField(max_length=6, unique=True, db_index=True, blank=True, null=True)
     guest = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
         related_name='bookings'
@@ -123,6 +124,15 @@ class Booking(models.Model):
                 candidate = f"NOAM{random.randint(10000000, 99999999)}"
                 if not Booking.objects.filter(booking_number=candidate).exists():
                     self.booking_number = candidate
+        
+        if not self.reservation_code:
+            import random
+            import string
+            while not self.reservation_code:
+                candidate = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                if not Booking.objects.filter(reservation_code=candidate).exists():
+                    self.reservation_code = candidate
+        
         if self.check_in_date and self.check_out_date:
             self.total_nights = max(0, (self.check_out_date - self.check_in_date).days)
         super().save(*args, **kwargs)

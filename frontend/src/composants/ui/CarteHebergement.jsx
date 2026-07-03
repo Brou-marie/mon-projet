@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Star, MapPin, Heart } from 'lucide-react'
+import { Star, MapPin, Heart, ImageOff } from 'lucide-react'
 import { getImageHebergement } from '../../lib/images'
 import { formatPrix, TYPES_ETAB } from '../../lib/format'
 
 export function CarteHebergement({ hebergement, prioritaire = false }) {
   const [aimee, setAimee] = useState(false)
+  const [imgError, setImgError] = useState(false)
   const {
     slug, name, city, quarter,
     establishment_type, avg_rating, review_count,
@@ -13,7 +14,7 @@ export function CarteHebergement({ hebergement, prioritaire = false }) {
   } = hebergement
 
   // Image : API ou fallback Unsplash
-  const srcImg = primary_image || getImageHebergement(establishment_type)
+  const srcImg = !imgError && primary_image ? primary_image : getImageHebergement(establishment_type)
   const note = avg_rating > 0 ? Number(avg_rating).toFixed(1) : null
 
   return (
@@ -23,15 +24,19 @@ export function CarteHebergement({ hebergement, prioritaire = false }) {
     >
       {/* Image */}
       <div className="relative overflow-hidden aspect-[4/3] bg-gray-100">
-        <img
-          src={srcImg}
-          alt={name}
-          loading={prioritaire ? 'eager' : 'lazy'}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          onError={(e) => {
-            e.target.src = getImageHebergement(establishment_type, 1)
-          }}
-        />
+        {imgError ? (
+          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+            <ImageOff className="w-8 h-8 text-gray-300" />
+          </div>
+        ) : (
+          <img
+            src={srcImg}
+            alt={name}
+            loading={prioritaire ? 'eager' : 'lazy'}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={() => setImgError(true)}
+          />
+        )}
         {/* Overlay gradient bas */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 

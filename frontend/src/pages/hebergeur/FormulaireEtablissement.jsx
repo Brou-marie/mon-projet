@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Building2, MapPin, Clock, FileText, ChevronLeft,
-  Loader2, Check, AlertCircle,
+  Loader2, Check, AlertCircle, ImagePlus, X, Star,
 } from 'lucide-react'
 import { api } from '../../services/api'
 import { Alerte } from '../../composants/ui/Alerte'
@@ -41,6 +41,195 @@ const VIDE = {
   requires_manual_validation: false,
 }
 
+function GestionnaireImages({ establishmentId, slug, estEdition, onImagesChange }) {
+  const [images, setImages] = useState([])
+  const [previews, setPreviews] = useState([])
+  const [chargement, setChargement] = useState(false)
+  const [erreur, setErreur] = useState(null)
+
+  // Charger les images existantes si édition
+  useEffect(() => {
+    if (!estEdition || !slug) return
+    api.get(`/establishments/${slug}/images/list/`)
+      .then(data => {
+        const imgs = data || []
+        setImages(imgs)
+        setPreviews(imgs.map(img => ({ id: img.id, url: img.url, is_primary: img.is_primary, caption: img.caption })))
+      })
+      .catch(e => console.error('Erreur chargement images:', e))
+  }, [estEdition, slug])
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
+
+    const newPreviews = files.map(file => ({
+      file,
+      url: URL.createObjectURL(file),
+      is_primary: previews.length === 0,
+      caption: '',
+      temp: true
+    }))
+
+    setPreviews([...previews, ...newPreviews])
+    onImagesChange([...images, ...newPreviews])
+  }
+
+  const handleRemove = (index) => {
+    const img = previews[index]
+    if (!img.temp) {
+      // Supprimer du serveur
+      api.delete(`/establishments/images/${img.id}/delete/`)
+        .then(() => {
+          setPreviews(previews.filter((_, i) => i !== index))
+          setImages(images.filter(i => i.id !== img.id))
+        })
+        .catch(e => setErreur(e.message))
+    } else {
+      // Supprimer localement
+      URL.revokeObjectURL(img.url)
+      setPreviews(previews.filter((_, i) => i !== index))
+    }
+  }
+
+  const handleSetPrimary = (index) => {
+    const updated = previews.map((p, i) => ({
+      ...p,
+      is_primary: i === index
+    }))
+    setPreviews(updated)
+    
+    // Mettre à jour sur le serveur si image existante
+    const img = updated[index]
+    if (!img.temp && img.id) {
+      api.patch(`/establishments/images/${img.id}/`, { is_primary: true })
+        .catch(e => console.error('Erreur mise à jour primaire:', e))
+    }
+  }
+
+  const handleCaptionChange = (index, caption) => {
+    const updated = [...previews]
+    updated[index].caption = caption
+    setPreviews(updated)
+    
+    // Mettre à jour sur le serveur si image existante
+    const img = updated[index]
+    if (!img.temp && img.id) {
+      api.patch(`/establishments/images/${img.id}/`, { caption })
+        .catch(e => console.error('Erreur mise à jour caption:', e))
+    }
+  }
+
+  const uploadImages = async () => {
+    const newImages = previews.filter(p => p.temp)
+    if (newImages.length === 0) return
+
+    setChargement(true)
+    setErreur(null)
+
+    try {
+      const formData = new FormData()
+      newImages.forEach((p, i) => {
+        formData.append('images', p.file)
+        if (p.caption) formData.append('caption', p.caption)
+      })
+
+      const uploaded = await api.post(`/establishments/${slug}/images/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+
+      setPreviews(uploaded.map(img => ({ id: img.id, url: img.url, is_primary: img.is_primary, caption: img.caption })))
+      setImages(uploaded)
+      return uploaded
+    } catch (e) {
+      setErreur(e.message)
+      throw e
+    } finally {
+      setChargement(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <label className="label">Photos</label>
+        <label className="btn-secondary text-sm gap-2 cursor-pointer">
+          <ImagePlus className="w-4 h-4" />
+          Ajouter des photos
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+        </label>
+      </div>
+
+      {erreur && <Alerte type="erreur" message={erreur} onFermer={() => setErreur(null)} />}
+
+      {previews.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {previews.map((img, index) => (
+            <div key={img.id || index} className="relative group">
+              <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 border-2 border-gray-200">
+                <img
+                  src={img.url}
+                  alt={`Photo ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                {img.is_primary && (
+                  <div className="absolute top-2 left-2 bg-primary-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-current" />
+                    Principale
+                  </div>
+                )}
+                <button
+                  onClick={() => handleRemove(index)}
+                  className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  type="button"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="mt-2 space-y-1">
+                {!img.is_primary && (
+                  <button
+                    onClick={() => handleSetPrimary(index)}
+                    className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                    type="button"
+                  >
+                    Définir comme principale
+                  </button>
+                )}
+                <input
+                  type="text"
+                  value={img.caption}
+                  onChange={(e) => handleCaptionChange(index, e.target.value)}
+                  placeholder="Légende (optionnel)"
+                  className="w-full text-xs px-2 py-1 border border-gray-200 rounded-lg"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center">
+          <ImagePlus className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm text-gray-400">Aucune photo ajoutée</p>
+        </div>
+      )}
+
+      {chargement && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Téléchargement en cours...
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Étape dans le formulaire multi-sections
 function SectionFormulaire({ numero, titre, Icone, children }) {
   return (
@@ -67,6 +256,8 @@ export function PageFormulaireEtablissement() {
   const [enSoumission, setEnSoumission] = useState(false)
   const [erreur, setErreur] = useState(null)
   const [succes, setSucces] = useState(null)
+  const [slug, setSlug] = useState(null)
+  const [imagesManager, setImagesManager] = useState(null)
 
   // Si édition : charger les données existantes
   useEffect(() => {
@@ -85,6 +276,7 @@ export function PageFormulaireEtablissement() {
           cancellation_policy: data.cancellation_policy || 'moderate',
           requires_manual_validation: data.requires_manual_validation || false,
         })
+        setSlug(data.slug)
       })
       .catch((e) => setErreur(e.message))
       .finally(() => setChargement(false))
@@ -107,10 +299,19 @@ export function PageFormulaireEtablissement() {
       let resultat
       if (estEdition) {
         resultat = await api.patch(`/owner/establishments/${id}/`, form)
+        // Upload des nouvelles images si présentes
+        if (imagesManager && imagesManager.uploadImages) {
+          await imagesManager.uploadImages()
+        }
         setSucces('Établissement mis à jour avec succès.')
         setTimeout(() => navigate('/hebergeur/etablissements'), 1500)
       } else {
         resultat = await api.post('/owner/establishments/', form)
+        setSlug(resultat.slug)
+        // Upload des images après création
+        if (imagesManager && imagesManager.uploadImages) {
+          await imagesManager.uploadImages()
+        }
         navigate('/hebergeur/etablissements', {
           state: { succes: `Établissement "${resultat.name}" créé ! Il est en attente de validation.` },
         })
@@ -160,7 +361,7 @@ export function PageFormulaireEtablissement() {
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {/* ── Section 1 : Informations générales ── */}
-        <SectionFormulaire numero="1/4" titre="Informations générales" Icone={Building2}>
+        <SectionFormulaire numero="1/5" titre="Informations générales" Icone={Building2}>
           <div className="space-y-4">
             <div>
               <label className="label">Nom de l'établissement *</label>
@@ -212,7 +413,7 @@ export function PageFormulaireEtablissement() {
         </SectionFormulaire>
 
         {/* ── Section 2 : Localisation ── */}
-        <SectionFormulaire numero="2/4" titre="Localisation" Icone={MapPin}>
+        <SectionFormulaire numero="2/5" titre="Localisation" Icone={MapPin}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -252,7 +453,7 @@ export function PageFormulaireEtablissement() {
         </SectionFormulaire>
 
         {/* ── Section 3 : Horaires ── */}
-        <SectionFormulaire numero="3/4" titre="Horaires d'accueil" Icone={Clock}>
+        <SectionFormulaire numero="3/5" titre="Horaires d'accueil" Icone={Clock}>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Heure d'arrivée (check-in)</label>
@@ -276,7 +477,7 @@ export function PageFormulaireEtablissement() {
         </SectionFormulaire>
 
         {/* ── Section 4 : Politique ── */}
-        <SectionFormulaire numero="4/4" titre="Politique et options" Icone={FileText}>
+        <SectionFormulaire numero="4/5" titre="Politique et options" Icone={FileText}>
           <div className="space-y-5">
             <div>
               <label className="label">Politique d'annulation</label>
@@ -325,6 +526,16 @@ export function PageFormulaireEtablissement() {
               </label>
             </div>
           </div>
+        </SectionFormulaire>
+
+        {/* ── Section 5 : Photos ── */}
+        <SectionFormulaire numero="5/5" titre="Photos" Icone={ImagePlus}>
+          <GestionnaireImages
+            establishmentId={id}
+            slug={slug}
+            estEdition={estEdition}
+            onImagesChange={setImagesManager}
+          />
         </SectionFormulaire>
 
         {/* ── Boutons ── */}

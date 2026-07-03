@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ProviderAuth } from './contextes/AuthContexte'
 import { DispositionPrincipale } from './composants/mise-en-page/DispositionPrincipale'
 import { DispositionTableauBord } from './composants/mise-en-page/DispositionTableauBord'
-import { RoutePubliqueSeul, RouteRole } from './composants/routage/RouteProtegee'
+import { RoutePubliqueSeul, RoutePubliqueVoyageur, RouteRole } from './composants/routage/RouteProtegee'
 import { PageChargement } from './composants/ui/Chargement'
 
 // Publiques
@@ -43,9 +43,9 @@ export default function App() {
 
             {/* ── Pages publiques ── */}
             <Route element={<DispositionPrincipale />}>
-              <Route path="/" element={<RoutePubliqueSeul><PageAccueil /></RoutePubliqueSeul>} />
-              <Route path="/hebergements" element={<PageListeHebergements />} />
-              <Route path="/hebergements/:slug" element={<PageDetailHebergement />} />
+              <Route path="/" element={<RoutePubliqueVoyageur><PageAccueil /></RoutePubliqueVoyageur>} />
+              <Route path="/hebergements" element={<RoutePubliqueVoyageur><PageListeHebergements /></RoutePubliqueVoyageur>} />
+              <Route path="/hebergements/:slug" element={<RoutePubliqueVoyageur><PageDetailHebergement /></RoutePubliqueVoyageur>} />
               <Route path="/connexion" element={<RoutePubliqueSeul><PageConnexion /></RoutePubliqueSeul>} />
               <Route path="/inscription" element={<RoutePubliqueSeul><PageInscription /></RoutePubliqueSeul>} />
               <Route path="/reservation/:slug" element={<RouteRole role="guest"><PageReservation /></RouteRole>} />

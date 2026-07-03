@@ -2,6 +2,8 @@ import uuid
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 
 class Amenity(models.Model):
@@ -236,3 +238,27 @@ class RoomAvailability(models.Model):
             })
         if self.special_price is not None and self.special_price <= 0:
             raise ValidationError({'special_price': "Le tarif spécial doit être supérieur à zéro."})
+
+
+@receiver(post_delete, sender=EstablishmentImage)
+def reassign_establishment_primary_image(sender, instance, **kwargs):
+    """Réassigne automatiquement la photo principale si elle est supprimée."""
+    if instance.is_primary:
+        remaining = EstablishmentImage.objects.filter(
+            establishment=instance.establishment
+        ).order_by('display_order', 'created_at').first()
+        if remaining:
+            remaining.is_primary = True
+            remaining.save(update_fields=['is_primary'])
+
+
+@receiver(post_delete, sender=RoomTypeImage)
+def reassign_roomtype_primary_image(sender, instance, **kwargs):
+    """Réassigne automatiquement la photo principale si elle est supprimée."""
+    if instance.is_primary:
+        remaining = RoomTypeImage.objects.filter(
+            room_type=instance.room_type
+        ).order_by('display_order', 'created_at').first()
+        if remaining:
+            remaining.is_primary = True
+            remaining.save(update_fields=['is_primary'])

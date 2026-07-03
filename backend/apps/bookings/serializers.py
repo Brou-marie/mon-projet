@@ -22,10 +22,10 @@ class BookingListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Booking
-        fields = ('id', 'booking_number', 'establishment_name', 'room_type_name',
+        fields = ('id', 'booking_number', 'reservation_code', 'establishment_name', 'room_type_name',
                   'check_in_date', 'check_out_date', 'total_nights', 'status',
                   'total_amount', 'primary_image', 'created_at')
-        read_only_fields = ('id', 'booking_number', 'total_amount', 'created_at')
+        read_only_fields = ('id', 'booking_number', 'reservation_code', 'total_amount', 'created_at')
 
     def get_primary_image(self, obj):
         img = obj.establishment.images.filter(is_primary=True).first() or obj.establishment.images.first()
@@ -47,7 +47,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         exclude = ('qr_code',)
-        read_only_fields = ('booking_number', 'total_nights', 'subtotal', 'platform_fee',
+        read_only_fields = ('booking_number', 'reservation_code', 'total_nights', 'subtotal', 'platform_fee',
                             'tax_amount', 'total_amount', 'commission_amount', 'host_payout',
                             'created_at', 'updated_at', 'cancelled_at', 'refund_amount')
 
