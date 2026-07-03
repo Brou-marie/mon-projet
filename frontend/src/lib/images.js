@@ -47,7 +47,7 @@ export const IMAGES_CHAMBRE = {
 
 // Images destinations Côte d'Ivoire
 export const IMAGES_DESTINATIONS = {
-  'Abidjan': 'https://images.unsplash.com/photo-1617469767824-68d17c81e0a1?w=400&q=80',
+  'Abidjan': 'https://www.pexels.com/fr-fr/chercher/abidjan/',
   'Yamoussoukro': 'https://images.unsplash.com/photo-1548013146-72479768bada?w=400&q=80',
   'Bouaké': 'https://images.unsplash.com/photo-1533929736458-ca588d08c8be?w=400&q=80',
   'Grand-Bassam': 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&q=80',
