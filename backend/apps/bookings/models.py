@@ -75,6 +75,7 @@ class Booking(models.Model):
     price_breakdown = models.JSONField(default=dict, blank=True)
 
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    loyalty_discount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     platform_fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))

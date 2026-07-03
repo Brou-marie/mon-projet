@@ -116,16 +116,18 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         check_in = validated_data['check_in_date']
         check_out = validated_data['check_out_date']
         nights = booking_nights(check_in, check_out)
-        quote = quote_room_type(room_type, check_in, check_out, lock=True)
+        user = self.context['request'].user
+        quote = quote_room_type(room_type, check_in, check_out, lock=True, user=user)
         if not quote['available'] or not decrement_availability(room_type, nights):
             raise serializers.ValidationError({"dates": "Le type de chambre n'est plus disponible pour ces dates."})
 
         booking = Booking.objects.create(
-            guest=self.context['request'].user,
+            guest=user,
             room_type=room_type,
             establishment=establishment,
             status=Booking.PENDING_PAYMENT,
             subtotal=quote['subtotal'],
+            loyalty_discount=quote.get('loyalty_discount', Decimal('0.00')),
             platform_fee=quote['platform_fee'],
             tax_amount=quote['tax_amount'],
             total_amount=quote['total_amount'],
@@ -175,7 +177,9 @@ class BookingPriceEstimateSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         room_type = instance['room_type']
-        quote = quote_room_type(room_type, instance['check_in_date'], instance['check_out_date'])
+        request = self.context.get('request')
+        user = request.user if request and request.user.is_authenticated else None
+        quote = quote_room_type(room_type, instance['check_in_date'], instance['check_out_date'], user=user)
         return {
             'room_type_id': str(room_type.id),
             'room_type_name': room_type.name,
@@ -185,6 +189,7 @@ class BookingPriceEstimateSerializer(serializers.Serializer):
             'total_nights': quote['total_nights'],
             'price_breakdown': quote['price_breakdown'],
             'subtotal': quote['subtotal'],
+            'loyalty_discount': quote.get('loyalty_discount', Decimal('0.00')),
             'platform_fee': quote['platform_fee'],
             'tax_amount': quote['tax_amount'],
             'total_amount': quote['total_amount'],

@@ -170,6 +170,11 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking.actual_check_out = timezone.now()
         booking.save(update_fields=('actual_check_out', 'updated_at'))
         set_booking_status(booking, Booking.COMPLETED, changed_by=request.user, note='Check-out effectué.')
+
+        # Ajouter les points de fidélité après achèvement
+        from apps.accounts.services import process_booking_completion
+        process_booking_completion(booking)
+
         notify_user(
             booking.guest,
             'review_received',

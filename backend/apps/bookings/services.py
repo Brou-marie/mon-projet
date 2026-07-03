@@ -21,7 +21,7 @@ def commission_percent_for(establishment):
     return Decimal('10')
 
 
-def quote_room_type(room_type, check_in, check_out, lock=False):
+def quote_room_type(room_type, check_in, check_out, lock=False, user=None):
     nights = booking_nights(check_in, check_out)
     queryset = RoomAvailability.objects.filter(room_type=room_type, date__in=nights)
     if lock:
@@ -43,6 +43,13 @@ def quote_room_type(room_type, check_in, check_out, lock=False):
         subtotal += nightly_price
         price_breakdown[str(night)] = str(nightly_price)
 
+    # Appliquer la réduction de fidélité si applicable
+    loyalty_discount = Decimal('0.00')
+    if user:
+        from apps.accounts.services import get_loyalty_discount
+        loyalty_discount = get_loyalty_discount(user, subtotal)
+        subtotal -= loyalty_discount
+
     commission_percent = commission_percent_for(room_type.establishment)
     platform_fee = (subtotal * commission_percent / Decimal('100')).quantize(Decimal('0.01'))
     tax_amount = Decimal('0.00')
@@ -54,6 +61,7 @@ def quote_room_type(room_type, check_in, check_out, lock=False):
         'total_nights': len(nights),
         'price_breakdown': price_breakdown,
         'subtotal': subtotal,
+        'loyalty_discount': loyalty_discount,
         'platform_fee': platform_fee,
         'tax_amount': tax_amount,
         'total_amount': total_amount,
