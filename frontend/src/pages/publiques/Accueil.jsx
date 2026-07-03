@@ -155,7 +155,7 @@ function CarteDestination({ dest, onClick }) {
         src={getImageDestination(dest.city)}
         alt={dest.city}
         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-        onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&q=80' }}
+        onError={(e) => { e.target.src = 'https://www.pexels.com/fr-fr/chercher/abidjan/' }}
         loading="lazy"
       />
       <div className="absolute inset-0 hero-overlay" />
@@ -186,7 +186,7 @@ const AVANTAGES = [
   {
     Icone: CreditCard,
     titre: 'Paiement local',
-    desc: 'Wave, Orange Money, MTN Money — payez avec ce que vous avez déjà.',
+    desc: 'Wave, accepter ',
     couleur: 'text-blue-600 bg-blue-50',
   },
   {
