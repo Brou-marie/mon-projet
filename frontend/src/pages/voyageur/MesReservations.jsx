@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Calendar, MapPin, BedDouble, Clock, XCircle, Search, ChevronRight } from 'lucide-react'
+import { Calendar, MapPin, BedDouble, Clock, XCircle, Search, ChevronRight, CreditCard, Copy, Check } from 'lucide-react'
 import { api } from '../../services/api'
 import { BadgeStatut } from '../../composants/ui/Badge'
 import { SectionChargement } from '../../composants/ui/Chargement'
@@ -12,6 +12,7 @@ export function PageMesReservations() {
   const [chargement, setChargement] = useState(true)
   const [erreur, setErreur] = useState(null)
   const [message, setMessage] = useState(null)
+  const [copiedCode, setCopiedCode] = useState(null)
   const location = useLocation()
 
   useEffect(() => {
@@ -34,6 +35,12 @@ export function PageMesReservations() {
     } catch (e) {
       setMessage({ type: 'erreur', texte: e.message })
     }
+  }
+
+  const handleCopyCode = (code) => {
+    navigator.clipboard.writeText(code)
+    setCopiedCode(code)
+    setTimeout(() => setCopiedCode(null), 2000)
   }
 
   if (chargement) return <SectionChargement />
@@ -89,6 +96,40 @@ export function PageMesReservations() {
                       {r.total_nights} nuit{r.total_nights > 1 ? 's' : ''}
                     </span>
                   </div>
+
+                  {/* Code de réservation et paiement */}
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    {r.reservation_code && (
+                      <div className="flex items-center gap-2 bg-primary-50 px-3 py-1.5 rounded-lg">
+                        <span className="font-mono font-bold text-primary-700">{r.reservation_code}</span>
+                        <button
+                          onClick={() => handleCopyCode(r.reservation_code)}
+                          className="text-primary-600 hover:text-primary-800"
+                          title="Copier le code"
+                        >
+                          {copiedCode === r.reservation_code ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    )}
+                    {r.payment_method && (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <CreditCard className="w-4 h-4" />
+                        <span>{r.payment_method_display}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          r.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {r.payment_status === 'paid' ? 'Payé' : 'En attente'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {r.late_arrival_fee > 0 && (
+                    <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 px-3 py-1.5 rounded-lg">
+                      <Clock className="w-4 h-4" />
+                      <span>Frais d'arrivée tardive : {formatPrix(r.late_arrival_fee)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Montant + actions */}

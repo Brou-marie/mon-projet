@@ -133,9 +133,32 @@ class BookingViewSet(viewsets.ModelViewSet):
         if booking.status != Booking.CONFIRMED:
             return Response({"detail": "La réservation doit être confirmée pour le check-in."},
                             status=status.HTTP_400_BAD_REQUEST)
+
         booking.actual_check_in = timezone.now()
-        booking.save(update_fields=('actual_check_in', 'updated_at'))
+
+        # Calcul des frais d'arrivée tardive (après 18h)
+        expected_check_in = booking.check_in_date
+        actual_time = booking.actual_check_in.time()
+        late_hour = 18
+
+        if actual_time.hour >= late_hour:
+            # Frais de 10% du montant total pour arrivée tardive
+            late_fee = booking.total_amount * Decimal('0.10')
+            booking.late_arrival_fee = late_fee
+            booking.total_amount += late_fee
+
+        booking.save(update_fields=('actual_check_in', 'late_arrival_fee', 'total_amount', 'updated_at'))
         set_booking_status(booking, Booking.IN_PROGRESS, changed_by=request.user, note='Check-in effectué.')
+
+        if booking.late_arrival_fee > 0:
+            notify_user(
+                booking.guest,
+                'late_arrival_fee',
+                'Frais d\'arrivée tardive',
+                f'Une arrivée tardive a entraîné des frais supplémentaires de {booking.late_arrival_fee} FCFA pour votre réservation {booking.booking_number}.',
+                {'booking_number': booking.booking_number, 'fee_amount': str(booking.late_arrival_fee)}
+            )
+
         return Response(BookingDetailSerializer(booking, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
@@ -162,7 +185,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         if not request.user.is_host:
             return Response({"detail": "Accès réservé aux hébergeurs."},
                             status=status.HTTP_403_FORBIDDEN)
-        
+
         try:
             booking = Booking.objects.get(
                 reservation_code=code.upper(),
@@ -172,6 +195,46 @@ class BookingViewSet(viewsets.ModelViewSet):
         except Booking.DoesNotExist:
             return Response({"detail": "Aucune réservation trouvée avec ce code."},
                             status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['post'])
+    def validate_payment(self, request, booking_number=None):
+        """Permet à l'hébergeur de valider le paiement avec le moyen de paiement utilisé."""
+        if not request.user.is_host:
+            return Response({"detail": "Accès réservé aux hébergeurs."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        booking = self.get_object()
+        payment_method = request.data.get('payment_method')
+
+        if not payment_method:
+            return Response({"detail": "Le moyen de paiement est requis."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if payment_method not in dict(Booking.PAYMENT_METHOD_CHOICES):
+            return Response({"detail": "Moyen de paiement invalide."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if booking.payment_status == 'paid':
+            return Response({"detail": "Cette réservation est déjà payée."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        booking.payment_method = payment_method
+        booking.payment_status = 'paid'
+        booking.status = Booking.CONFIRMED
+        booking.save()
+
+        record_status(booking, Booking.CONFIRMED, changed_by=request.user,
+                     note=f"Paiement validé via {booking.get_payment_method_display()}")
+
+        notify_user(
+            booking.guest,
+            'booking_confirmed',
+            'Paiement validé',
+            f'Votre réservation {booking.booking_number} a été confirmée. Moyen de paiement : {booking.get_payment_method_display()}',
+            {'booking_number': booking.booking_number}
+        )
+
+        return Response(BookingDetailSerializer(booking, context={'request': request}).data)
 
     def _calculate_refund(self, booking):
         policy = booking.establishment.cancellation_policy

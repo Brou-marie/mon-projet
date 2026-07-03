@@ -20,6 +20,21 @@ class Booking(models.Model):
     DISPUTE = 'dispute'
     NO_SHOW = 'no_show'
 
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Espèces'),
+        ('wave', 'Wave'),
+        ('orange_money', 'Orange Money'),
+        ('mtn_money', 'MTN Money'),
+        ('moov', 'Moov'),
+        ('card', 'Carte bancaire'),
+    ]
+
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'En attente'),
+        ('paid', 'Payé'),
+        ('failed', 'Échoué'),
+    ]
+
     STATUS_CHOICES = [
         (PENDING_PAYMENT, 'En attente de paiement'),
         (PAID, 'Payée'),
@@ -80,6 +95,10 @@ class Booking(models.Model):
     check_out_time = models.TimeField(blank=True, null=True)
     actual_check_in = models.DateTimeField(blank=True, null=True)
     actual_check_out = models.DateTimeField(blank=True, null=True)
+
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, blank=True, null=True)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    late_arrival_fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     qr_code = models.CharField(max_length=100, blank=True, db_index=True)
     promo_code = models.CharField(max_length=50, blank=True)

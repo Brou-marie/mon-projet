@@ -43,6 +43,8 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     guest_name = serializers.CharField(source='guest.get_full_name', read_only=True)
     guest_phone = serializers.CharField(source='guest.phone', read_only=True)
     guest_email = serializers.CharField(source='guest.email', read_only=True)
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
 
     class Meta:
         model = Booking

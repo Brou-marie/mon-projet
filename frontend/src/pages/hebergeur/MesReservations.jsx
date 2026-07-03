@@ -1,10 +1,19 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, User, BedDouble, CheckCircle, XCircle, Clock, LogIn, LogOut, Search, AlertCircle } from 'lucide-react'
+import { Calendar, User, BedDouble, CheckCircle, XCircle, Clock, LogIn, LogOut, Search, AlertCircle, CreditCard } from 'lucide-react'
 import { api } from '../../services/api'
 import { BadgeStatut } from '../../composants/ui/Badge'
 import { SectionChargement } from '../../composants/ui/Chargement'
 import { ErreurPage, Alerte } from '../../composants/ui/Alerte'
 import { formatPrix, formatPlageDates } from '../../lib/format'
+
+const PAYMENT_METHODS = [
+  { value: 'cash', label: 'Espèces' },
+  { value: 'wave', label: 'Wave' },
+  { value: 'orange_money', label: 'Orange Money' },
+  { value: 'mtn_money', label: 'MTN Money' },
+  { value: 'moov', label: 'Moov' },
+  { value: 'card', label: 'Carte bancaire' },
+]
 
 export function PageReservationsHebergeur() {
   const [reservations, setReservations] = useState([])
@@ -14,6 +23,8 @@ export function PageReservationsHebergeur() {
   const [searchCode, setSearchCode] = useState('')
   const [searchResult, setSearchResult] = useState(null)
   const [searchLoading, setSearchLoading] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState('')
+  const [validatingPayment, setValidatingPayment] = useState(false)
 
   const charger = () => {
     setChargement(true)
@@ -48,6 +59,7 @@ export function PageReservationsHebergeur() {
 
     setSearchLoading(true)
     setSearchResult(null)
+    setPaymentMethod('')
     try {
       const result = await api.get(`/bookings/by-code/${searchCode.trim().toUpperCase()}/`)
       setSearchResult(result)
@@ -56,6 +68,23 @@ export function PageReservationsHebergeur() {
       setMessage({ type: 'erreur', texte: 'Aucune réservation trouvée avec ce code.' })
     } finally {
       setSearchLoading(false)
+    }
+  }
+
+  const handleValidatePayment = async () => {
+    if (!searchResult || !paymentMethod) return
+
+    setValidatingPayment(true)
+    try {
+      await api.post(`/bookings/${searchResult.booking_number}/validate_payment/`, { payment_method })
+      setMessage({ type: 'succes', texte: 'Paiement validé avec succès !' })
+      setSearchResult(null)
+      setPaymentMethod('')
+      charger()
+    } catch (e) {
+      setMessage({ type: 'erreur', texte: e.message || 'Erreur lors de la validation du paiement.' })
+    } finally {
+      setValidatingPayment(false)
     }
   }
 
@@ -129,14 +158,66 @@ export function PageReservationsHebergeur() {
                 <p className="font-semibold">{formatPlageDates(searchResult.check_in_date, searchResult.check_out_date)}</p>
               </div>
             </div>
+
+            {/* Validation de paiement */}
+            {searchResult.payment_status === 'pending' && (
+              <div className="pt-3 border-t border-gray-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <CreditCard className="w-4 h-4 text-primary-600" />
+                  <p className="font-semibold text-gray-900">Valider le paiement</p>
+                </div>
+                <div className="space-y-3">
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="input"
+                  >
+                    <option value="">Sélectionner le moyen de paiement</option>
+                    {PAYMENT_METHODS.map((method) => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleValidatePayment}
+                      disabled={!paymentMethod || validatingPayment}
+                      className="btn-primary flex-1 gap-2"
+                    >
+                      {validatingPayment ? <Clock className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      Valider le paiement
+                    </button>
+                    <button
+                      onClick={() => setSearchResult(null)}
+                      className="btn-secondary"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {searchResult.payment_status === 'paid' && (
+              <div className="pt-3 border-t border-gray-200">
+                <div className="flex items-center gap-2 text-emerald-600">
+                  <CheckCircle className="w-4 h-4" />
+                  <p className="font-semibold">Paiement validé via {searchResult.payment_method_display}</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-3 border-t border-gray-200">
               <p className="text-xl font-bold text-primary-600">{formatPrix(searchResult.total_amount)}</p>
-              <button
-                onClick={() => setSearchResult(null)}
-                className="btn-secondary text-sm"
-              >
-                Fermer
-              </button>
+              {searchResult.payment_status !== 'pending' && (
+                <button
+                  onClick={() => setSearchResult(null)}
+                  className="btn-secondary text-sm"
+                >
+                  Fermer
+                </button>
+              )}
             </div>
           </div>
         </div>
