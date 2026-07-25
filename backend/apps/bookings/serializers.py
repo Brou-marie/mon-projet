@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 from .models import Booking, BookingStatusHistory

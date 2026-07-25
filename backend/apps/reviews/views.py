@@ -13,21 +13,26 @@ class ReviewViewSet(viewsets.ModelViewSet):
     lookup_field = 'id'
 
     def get_queryset(self):
-        queryset = Review.objects.filter(is_published=True)
-        if self.action in ('update', 'partial_update', 'destroy'):
+        # flag et approve travaillent sur tous les avis (y compris non publiés)
+        if self.action in ('flag', 'approve', 'update', 'partial_update', 'destroy'):
             if self.request.user.is_authenticated and self.request.user.is_staff_user:
                 queryset = Review.objects.all()
             elif self.request.user.is_authenticated:
                 queryset = Review.objects.filter(reviewer=self.request.user)
             else:
                 queryset = Review.objects.none()
+        else:
+            queryset = Review.objects.filter(is_published=True)
+
         establishment_id = self.request.query_params.get('establishment')
         if establishment_id:
             queryset = queryset.filter(establishment_id=establishment_id)
         return queryset.select_related('reviewer', 'response')
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'flag']:
+        if self.action in ('flag', 'approve'):
+            return [permissions.IsAdminUser()]
+        if self.action in ('create', 'update', 'partial_update', 'destroy', 'respond'):
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
 
@@ -36,7 +41,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
             return ReviewCreateSerializer
         return ReviewSerializer
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['post'])
     def respond(self, request, id=None):
         review = self.get_object()
         serializer = ReviewResponseCreateSerializer(
@@ -45,9 +50,12 @@ class ReviewViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(ReviewSerializer(review, context={'request': request}).data, status=status.HTTP_201_CREATED)
+        return Response(
+            ReviewSerializer(review, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['post'])
     def flag(self, request, id=None):
         review = self.get_object()
         review.is_flagged = True
@@ -55,7 +63,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
         review.save()
         return Response(ReviewSerializer(review, context={'request': request}).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['post'])
     def approve(self, request, id=None):
         review = self.get_object()
         review.is_flagged = False

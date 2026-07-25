@@ -41,7 +41,7 @@ class Payment(models.Model):
     refund_reference = models.CharField(max_length=200, blank=True)
     
     # Facturation
-    invoice_number = models.CharField(max_length=50, unique=True, blank=True)
+    invoice_number = models.CharField(max_length=50, unique=True, blank=True, null=True, default=None)
     invoice_generated = models.BooleanField(default=False)
     invoice_url = models.URLField(blank=True)
     

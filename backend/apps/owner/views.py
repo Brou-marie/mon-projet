@@ -77,6 +77,9 @@ class OwnerEstablishmentViewSet(viewsets.ModelViewSet):
         return Establishment.objects.filter(host=self.request.user).select_related('host')
     
     def perform_create(self, serializer):
+        if self.request.user.role != 'host':
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Seuls les hébergeurs peuvent créer un établissement.")
         serializer.save(host=self.request.user)
 
 
@@ -167,80 +170,185 @@ class OwnerBookingViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = OwnerBookingSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = []
-    
+
     def get_queryset(self):
         if self.request.user.role != 'host':
             return Booking.objects.none()
         return Booking.objects.filter(
             establishment__host=self.request.user
         ).select_related('guest', 'establishment', 'room_type')
-    
+
+    @action(detail=False, methods=['post'], url_path='lookup-code')
+    def lookup_code(self, request):
+        """
+        POST /api/owner/bookings/lookup-code/
+        L'hébergeur saisit le code du client → retourne la fiche complète.
+        """
+        if request.user.role != 'host':
+            return Response({'detail': 'Accès réservé aux hébergeurs.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        code = (request.data.get('code') or '').strip().upper()
+        if not code:
+            return Response({'detail': 'Le code de réservation est requis.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            booking = Booking.objects.select_related(
+                'guest', 'establishment', 'room_type'
+            ).get(reservation_code=code, establishment__host=request.user)
+        except Booking.DoesNotExist:
+            return Response(
+                {'detail': 'Aucune réservation trouvée avec ce code pour vos établissements.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = OwnerBookingSerializer(booking)
+        data = serializer.data
+        # Champs supplémentaires utiles pour l'accueil
+        data['reservation_code'] = booking.reservation_code
+        data['payment_status'] = booking.payment_status
+        data['payment_method'] = booking.payment_method
+        data['payment_method_display'] = booking.get_payment_method_display() if booking.payment_method else None
+        data['establishment_name'] = booking.establishment.name
+        data['guest_notes'] = booking.guest_notes
+        data['total_nights'] = booking.total_nights
+        return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='validate-payment')
+    def validate_payment(self, request, pk=None):
+        """
+        POST /api/owner/bookings/{id}/validate-payment/
+        L'hébergeur confirme que le client a payé sur place,
+        enregistre le moyen de paiement et confirme la réservation.
+        """
+        if request.user.role != 'host':
+            return Response({'detail': 'Accès réservé aux hébergeurs.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        booking = self.get_object()
+
+        if booking.establishment.host != request.user:
+            return Response({'detail': 'Vous n\'êtes pas autorisé à valider cette réservation.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        if booking.payment_status == 'paid':
+            return Response({'detail': 'Cette réservation est déjà marquée comme payée.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        payment_method = request.data.get('payment_method', '').strip()
+        if not payment_method:
+            return Response({'detail': 'Le moyen de paiement est requis.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        valid_methods = dict(Booking.PAYMENT_METHOD_CHOICES)
+        if payment_method not in valid_methods:
+            return Response({'detail': f'Moyen de paiement invalide. Choix : {", ".join(valid_methods.keys())}'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        payment_proof = request.data.get('payment_proof', '').strip()
+
+        # Mettre à jour le paiement sur la réservation
+        booking.payment_method = payment_method
+        booking.payment_status = 'paid'
+        booking.payment_proof = payment_proof
+        booking.save(update_fields=('payment_method', 'payment_status', 'payment_proof', 'updated_at'))
+
+        # Faire avancer le statut de la réservation
+        from apps.bookings.services import set_booking_status, record_status
+        from apps.notifications.services import notify_user
+
+        if booking.status == Booking.PENDING_PAYMENT:
+            # Réservation pas encore validée → passe directement à confirmée
+            set_booking_status(
+                booking, Booking.CONFIRMED, changed_by=request.user,
+                note=f'Paiement reçu sur place via {valid_methods[payment_method]}.',
+            )
+        elif booking.status == Booking.PENDING_HOST_VALIDATION:
+            set_booking_status(
+                booking, Booking.CONFIRMED, changed_by=request.user,
+                note=f'Paiement reçu et réservation validée via {valid_methods[payment_method]}.',
+            )
+        else:
+            # Déjà confirmée ou en cours → on enregistre juste le paiement
+            record_status(
+                booking, booking.status, changed_by=request.user,
+                note=f'Paiement enregistré via {valid_methods[payment_method]}.',
+            )
+
+        notify_user(
+            booking.guest,
+            'booking_confirmed',
+            'Paiement confirmé',
+            f'Votre paiement pour la réservation {booking.booking_number} a été validé par l\'hébergeur. Bienvenue !',
+            {'booking_number': booking.booking_number},
+        )
+
+        return Response({
+            'detail': 'Paiement validé. La réservation est confirmée.',
+            'booking': OwnerBookingSerializer(booking).data,
+        })
+
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """Approuver une réservation"""
+        """Approuver une réservation en attente de validation"""
         booking = self.get_object()
-        
         if booking.status != Booking.PENDING_HOST_VALIDATION:
-            return Response(
-                {'detail': 'Cette réservation ne peut pas être approuvée'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'detail': 'Cette réservation ne peut pas être approuvée.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         booking.status = Booking.CONFIRMED
-        booking.save()
-        
-        return Response({'detail': 'Réservation approuvée'})
-    
+        booking.save(update_fields=('status', 'updated_at'))
+        from apps.bookings.services import record_status
+        record_status(booking, Booking.CONFIRMED, changed_by=request.user, note='Approuvée par l\'hébergeur.')
+        return Response({'detail': 'Réservation approuvée.'})
+
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         """Rejeter une réservation"""
         booking = self.get_object()
         reason = request.data.get('reason', '')
-        
         if booking.status != Booking.PENDING_HOST_VALIDATION:
-            return Response(
-                {'detail': 'Cette réservation ne peut pas être rejetée'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'detail': 'Cette réservation ne peut pas être rejetée.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         booking.status = Booking.REJECTED_BY_HOST
         booking.cancellation_reason = reason
         booking.cancelled_by = request.user
         booking.cancelled_at = timezone.now()
         booking.save()
-        
-        return Response({'detail': 'Réservation rejetée'})
-    
+        from apps.bookings.services import record_status
+        record_status(booking, Booking.REJECTED_BY_HOST, changed_by=request.user, note=reason)
+        return Response({'detail': 'Réservation rejetée.'})
+
     @action(detail=True, methods=['post'])
     def check_in(self, request, pk=None):
-        """Effectuer le check-in d'une réservation"""
+        """Effectuer le check-in"""
         booking = self.get_object()
-        
         if booking.status != Booking.CONFIRMED:
-            return Response(
-                {'detail': 'Le check-in ne peut être effectué que sur une réservation confirmée'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'detail': 'Le check-in nécessite une réservation confirmée.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         booking.status = Booking.IN_PROGRESS
         booking.actual_check_in = timezone.now()
-        booking.save()
-        
-        return Response({'detail': 'Check-in effectué'})
-    
+        booking.save(update_fields=('status', 'actual_check_in', 'updated_at'))
+        from apps.bookings.services import record_status
+        record_status(booking, Booking.IN_PROGRESS, changed_by=request.user, note='Check-in effectué.')
+        return Response({'detail': 'Check-in effectué.'})
+
     @action(detail=True, methods=['post'])
     def check_out(self, request, pk=None):
-        """Effectuer le check-out d'une réservation"""
+        """Effectuer le check-out"""
         booking = self.get_object()
-        
         if booking.status != Booking.IN_PROGRESS:
-            return Response(
-                {'detail': 'Le check-out ne peut être effectué que sur une réservation en cours'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'detail': 'Le check-out nécessite une réservation en cours.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         booking.status = Booking.COMPLETED
         booking.actual_check_out = timezone.now()
-        booking.save()
-        
-        return Response({'detail': 'Check-out effectué'})
+        booking.save(update_fields=('status', 'actual_check_out', 'updated_at'))
+        from apps.bookings.services import record_status
+        record_status(booking, Booking.COMPLETED, changed_by=request.user, note='Check-out effectué.')
+        # Points de fidélité
+        try:
+            from apps.accounts.services import process_booking_completion
+            process_booking_completion(booking)
+        except Exception:
+            pass
+        return Response({'detail': 'Check-out effectué.'})

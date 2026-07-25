@@ -1,0 +1,20 @@
+Le problème est uniquement dans le terminal où tu lances runserver. Ce terminal a encore la variable corrompue.
+
+Ce que tu dois faire maintenant
+Ferme tous les terminaux où tu as lancé des tests, puis relance le serveur via le script que j'ai créé. Double-clique sur :
+
+C:\Users\orsin\OneDrive\Desktop\mon-projet\start_backend.bat
+Ce script force DJANGO_SETTINGS_MODULE=NoamHome.settings avant tout, peu importe ce qui était défini avant.
+
+Ou dans un nouveau terminal PowerShell propre :
+
+cd C:\Users\orsin\OneDrive\Desktop\mon-projet\backend
+$env:DJANGO_SETTINGS_MODULE = "NoamHome.settings"
+python manage.py runserver
+Pour les tests, utilise toujours :
+
+$env:DJANGO_SETTINGS_MODULE = "NoamHome.settings_test"
+python manage.py test apps.bookings apps.payments ...
+Et pour revenir au mode normal après les tests :
+
+Remove-Item Env:DJANGO_SETTINGS_MODULE

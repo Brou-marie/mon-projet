@@ -87,20 +87,24 @@ class OwnerRoomTypeSerializer(serializers.ModelSerializer):
 
 class OwnerBookingSerializer(serializers.ModelSerializer):
     """Réservations vues par l'hébergeur."""
-    guest_name         = serializers.CharField(source='guest.get_full_name', read_only=True)
-    guest_email        = serializers.CharField(source='guest.email',         read_only=True)
-    guest_phone        = serializers.CharField(source='guest.phone',         read_only=True)
-    establishment_name = serializers.CharField(source='establishment.name',  read_only=True)
-    room_type_name     = serializers.CharField(source='room_type.name',      read_only=True)
+    guest_name             = serializers.CharField(source='guest.get_full_name', read_only=True)
+    guest_email            = serializers.CharField(source='guest.email',         read_only=True)
+    guest_phone            = serializers.CharField(source='guest.phone',         read_only=True)
+    establishment_name     = serializers.CharField(source='establishment.name',  read_only=True)
+    room_type_name         = serializers.CharField(source='room_type.name',      read_only=True)
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
 
     class Meta:
         model  = Booking
         fields = [
-            'id', 'booking_number', 'guest_name', 'guest_email', 'guest_phone',
+            'id', 'booking_number', 'reservation_code',
+            'guest_name', 'guest_email', 'guest_phone',
             'establishment_name', 'room_type_name',
             'check_in_date', 'check_out_date', 'total_nights',
             'guest_count_adults', 'guest_count_children',
-            'total_amount', 'host_payout', 'status', 'guest_notes', 'created_at',
+            'total_amount', 'host_payout',
+            'status', 'payment_status', 'payment_method', 'payment_method_display',
+            'guest_notes', 'created_at',
         ]
 
 
